@@ -112,10 +112,46 @@ float chaos_crest_push_time(chaos_crest_handle_t h);
  * @return the average registration time in ms, 0 if NA
  */
 float chaos_crest_reg_time(chaos_crest_handle_t h);
+
+/**
+ * Send a command to a CU
+ * @param h api handle
+ * @param cuname name cu name to access
+ * @param cmd command to sent (i.e. init, deinit, start, stop)
+ * @param arg arguments, 0 if none
+ * @return 0 on success, otherwise error
+ */
+
+int chaos_crest_cu_cmd(chaos_crest_handle_t h,const char*cuname,const char*cmd,const char* args);
+
+/**
+ * Retrieve the output dataset of a given CU
+ * @param h api handle
+ * @param cuname name cu name to access
+ * @param [out] output buffer where the dataset is written out
+ * @param maxsize max size of the buffer
+ * @return timestamp in ms on success, 0 if error
+ */
+
+uint64_t chaos_crest_cu_get(chaos_crest_handle_t h,const char*cuname,char*output,int maxsize);
+
+/**
+ * Retrieve the value of an output channel of a given CU
+ * @param h api handle
+ * @param cuname name cu name to access
+ * @param channame name of the channel
+ * @param [out] output buffer where the value is written out
+ * @param maxsize max size of the buffer
+ * @return timestamp in ms on success, 0 if error
+ */
+
+uint64_t chaos_crest_cu_get_channel(chaos_crest_handle_t h,const char*cuname,const char*channame,char*output,int maxsize);
+
 /**
  * Close the API context and free resources
  * @param h api handle
  * @return 0 on success, otherwise error
  */
+
 int chaos_crest_close(chaos_crest_handle_t h);
 #endif

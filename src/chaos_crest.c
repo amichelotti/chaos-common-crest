@@ -10,6 +10,8 @@
 #include <sys/types.h>          
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <sys/fcntl.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <string.h>
@@ -17,7 +19,14 @@
 #include <unistd.h>
 #include <netdb.h>
 #define MAXDIGITS 16
-#define MAXBUFFER 4096
+#define MAXBUFFER 8192
+#define CREST_DEBUG
+#ifdef CREST_DEBUG
+#define DPRINT(x,ARGS...) printf(x, ##ARGS)
+#else
+#define DPRINT(x,...)
+#endif
+
 
 typedef struct _ds{
     const char *name;
@@ -40,7 +49,8 @@ typedef struct _cu {
 typedef struct _chaos_crest_handle{
     char* wan_url;
     int sock_fd;
-    
+char*hostname;
+  
     cu_t *cus;
     int ncus;
     struct sockaddr_in sin;
@@ -52,7 +62,13 @@ typedef struct _chaos_crest_handle{
 } _chaos_crest_handle_t;
 
 static int http_post(chaos_crest_handle_t h,char*api,char*trx_buffer,int tsizeb,char*rx_buffer,int rsizeb){
+  _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
+  int ret;
+  ret = http_request(p->sock_fd,"POST",p->hostname, "chaos_crest",api, "application/json",trx_buffer, rx_buffer, rsizeb);
+  if(ret==200)
     return 0;
+  
+  return ret;
 }
 
 static const char* typeToString(int type){
@@ -78,7 +94,7 @@ static const char* typeToFormat(int type){
     } else if(type==TYPE_INT64){
              return "lld";
     } else if(type==TYPE_DOUBLE){
-             return "lf";
+             return "llf";
     } else if(type==TYPE_STRING){
              return "s";
              
@@ -103,6 +119,8 @@ chaos_crest_handle_t chaos_crest_open(const char* chaoswan_url) {
     char*hostname = host;
     char*sport;
     int port;
+    int one=1;
+    int opts;
     _chaos_crest_handle_t*h;
     strcpy(host, chaoswan_url);
     sport = strstr(host, ":");
@@ -116,6 +134,14 @@ chaos_crest_handle_t chaos_crest_open(const char* chaoswan_url) {
  
     if (sock < 0) 
         return 0;
+    /*    if(setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one))<0){
+      perror("cannot make no delay");
+      return 0;
+      }*/
+    opts = fcntl(sock,F_GETFL);
+    opts = opts & (~O_NONBLOCK);
+
+    fcntl(sock, F_SETFL, opts);
     h = (_chaos_crest_handle_t*)malloc(sizeof(_chaos_crest_handle_t));
     h->wan_url=strdup(chaoswan_url);
     h->sock_fd=sock;
@@ -131,19 +157,22 @@ chaos_crest_handle_t chaos_crest_open(const char* chaoswan_url) {
         return 0;
     }
     bcopy(host_addr->h_addr, &h->sin.sin_addr.s_addr, host_addr->h_length);
-
+    h->hostname=strdup(host_addr->h_name);
+    DPRINT("* open socket %d \"%s\"->\"%s\":\"%d\"\n",h->sock_fd,h->hostname,hostname,port);
     return h;
 }
 
 int chaos_crest_connect(chaos_crest_handle_t h) {
     _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
+    int ret;
     p->connected=0;
+    
     if(p->sock_fd<=0){
         printf("## not opened failed");
         return -2;
     }
-    if (connect(p->sock_fd, (const struct sockaddr *) &p->sin, sizeof (struct sockaddr_in)) < 0) {
-        printf("## connect failed") ;
+    if ((ret=connect(p->sock_fd, (const struct sockaddr *) &p->sin, sizeof (struct sockaddr_in))) != 0) {
+      printf("## connect failed, ret=%d",ret) ;
         close(p->sock_fd);
         p->sock_fd=0;
         return -101;
@@ -156,6 +185,8 @@ uint32_t chaos_crest_add_cu(chaos_crest_handle_t h,const char*name,chaos_ds_t* d
     _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
     int cnt;
     int ndsin=0,ndsout=0;
+    int cnt_in=0,cnt_out=0;
+
     p->cus=(cu_t*)realloc(p->cus,(p->ncus+1)*sizeof(cu_t));
     if(p->cus==NULL){
         printf("## cannot allocate memory\n");
@@ -182,28 +213,33 @@ uint32_t chaos_crest_add_cu(chaos_crest_handle_t h,const char*name,chaos_ds_t* d
     }    
     for(cnt=0;cnt<dsitems;cnt++){
         if(((dsin[cnt].dir==DIR_INPUT )||(dsin[cnt].dir==DIR_IO))){
-            p->cus[p->ncus].inds[cnt].name= strdup(dsin[cnt].name);
-            p->cus[p->ncus].inds[cnt].desc= strdup(dsin[cnt].desc);
-            p->cus[p->ncus].inds[cnt].type= dsin[cnt].type;
-            p->cus[p->ncus].inds[cnt].size= dsin[cnt].size;
-        } else {
+	  p->cus[p->ncus].inds[cnt_in].name= strdup(dsin[cnt].name);
+	  p->cus[p->ncus].inds[cnt_in].desc= strdup(dsin[cnt].desc);
+	  p->cus[p->ncus].inds[cnt_in].type= dsin[cnt].type;
+	  p->cus[p->ncus].inds[cnt_in].size= dsin[cnt].size;
+	  cnt_in++;
+        } 
+	if(((dsin[cnt].dir==DIR_OUTPUT )||(dsin[cnt].dir==DIR_IO))){
             const char* stype;
             const char*sformat;
             char stringa[256];
-            p->cus[p->ncus].outds[cnt].name= strdup(dsin[cnt].name);
-            p->cus[p->ncus].outds[cnt].desc= strdup(dsin[cnt].desc);
-            p->cus[p->ncus].outds[cnt].type= dsin[cnt].type;
-            p->cus[p->ncus].outds[cnt].size= dsin[cnt].size;
+            p->cus[p->ncus].outds[cnt_out].name= strdup(dsin[cnt].name);
+            p->cus[p->ncus].outds[cnt_out].desc= strdup(dsin[cnt].desc);
+            p->cus[p->ncus].outds[cnt_out].type= dsin[cnt].type;
+            p->cus[p->ncus].outds[cnt_out].size= dsin[cnt].size;
             stype=typeToString(dsin[cnt].type);
             sformat=typeToFormat(dsin[cnt].type);
             snprintf(stringa,sizeof(stringa),"\"%s\":\"%s:%%%s",dsin[cnt].name,stype,sformat);
-            p->cus[p->ncus].outds[cnt].format=strdup(stringa);
-            p->cus[p->ncus].outds[cnt].data= malloc(strlen(stringa)+1+dsin[cnt].size+MAXDIGITS);
-            if((p->cus[p->ncus].outds[cnt].data==NULL) || (p->cus[p->ncus].outds[cnt].format==NULL) ){
+            p->cus[p->ncus].outds[cnt_out].format=strdup(stringa);
+	    p->cus[p->ncus].outds[cnt_out].size= (strlen(stringa)+1+dsin[cnt].size+MAXDIGITS) ;
+	    DPRINT("allocating %d bytes\n",p->cus[p->ncus].outds[cnt_out].size);
+            p->cus[p->ncus].outds[cnt_out].data= malloc(p->cus[p->ncus].outds[cnt_out].size);
+            if((p->cus[p->ncus].outds[cnt_out].data==NULL) || (p->cus[p->ncus].outds[cnt_out].format==NULL) ){
                 printf("## cannot allocate memory for attribute data\n");
                 return -6;
             }
-        }
+	    cnt_out++;
+	}
     }
     
     p->ncus++;
@@ -226,6 +262,7 @@ static int update_attribute(cu_t *cu,int attr,void*data){
     }else if(p->type==TYPE_STRING){
        snprintf(p->data,p->size,p->format,(char*)data);
     }
+    DPRINT("updating [%d]\"%s\" format \"%s\" size:%d type:%d (0x%x)\n",attr,p->data,p->format,p->size,p->type,data);
     return 0;
 }
 
@@ -271,8 +308,8 @@ static int dump_attribute_desc(ds_t *attr,char*dir,char*buffer,int size,int last
 
 static int dump_attribute_value(ds_t *attr,char*buffer,int size,int last){
     
-    return snprintf(buffer,size,"{\"%s\":\"%s:%s\"}%s",
-            attr->name,typeToString(attr->type),attr->data,last?"":",");
+    return snprintf(buffer,size,"{%s\"}%s",
+            attr->data,last?"":",");
 }
 static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){
     _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
@@ -280,21 +317,24 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
     int cnt;
     char*pnt;
     char url[256];
-    char buffer_rx[256];
+    char buffer_rx[MAXBUFFER];
     int csize=0;
     unsigned long long ts;
+    int ret;
     if((cu_uid>p->ncus) || (cu_uid<=0)){
         printf("## bad Id %d",cu_uid);
         return -8;
     }
     cu=p->cus + (cu_uid-1);
+    DPRINT("registering CU \"%s\" UID:%d IN:%d, OUT:%d\n",cu->name,cu_uid,cu->nin,cu->nout);
     ts=getEpoch();
-    snprintf(buffer,size,"{\"ds_attr_dom\":\"%s\",\"ds_timestamp\":\"%llu\",\"ds_desc\":[",cu->name,ts);
+    snprintf(buffer,size,"{\"ds_attr_dom\":\"%s\",\"ds_timestamp\":%llu,\"ds_desc\":[",cu->name,ts);
     for(cnt=0;cnt<cu->nin;cnt++){
         csize=strlen(buffer);
         pnt=buffer+csize;
-        dump_attribute_desc(cu->inds+cnt,"input",pnt,size-csize,((cnt+1)==cu->nin));
+        dump_attribute_desc(cu->inds+cnt,"input",pnt,size-csize,(((cnt+1)==cu->nin))&&(cu->nout==0));
     }
+
     for(cnt=0;cnt<cu->nout;cnt++){
         csize=strlen(buffer);
         pnt=buffer+csize;
@@ -302,12 +342,15 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
        
     }
     strcat(buffer,"]}");
-    snprintf(url,sizeof(url),"api/v1/producer/register/%s",cu->name);
-    if(http_post(h,url,buffer,strlen(buffer),buffer_rx,sizeof(buffer_rx))==0){
+    snprintf(url,sizeof(url),"/api/v1/producer/register/%s",cu->name);
+    *buffer_rx=0;
+    if((ret=http_post(h,url,buffer,strlen(buffer),buffer_rx,sizeof(buffer_rx)))==0){
         p->tot_registration_time+= (getEpoch() -ts); 
         p->nreg++;
+	DPRINT("server returned:'%s'\n",buffer_rx);
+	return 0;
     }
-    
+    DPRINT("post failed to:\"%s\" ret:%d,server answer:'%s'\n",url,ret,buffer_rx);
     return -9; // registration failure
 }
 
@@ -318,7 +361,8 @@ static int push_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){
     int cnt;
     char*pnt;
     char url[256];
-    char buffer_rx[256];
+    char buffer_rx[MAXBUFFER];
+
     int csize;
     unsigned long long ts;
     if((cu_uid>p->ncus) || (cu_uid<=0)){
@@ -336,7 +380,7 @@ static int push_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){
     }
     strcat(buffer,"}");
     
-    snprintf(url,sizeof(url),"api/v1/producer/insert/%s",cu->name);
+    snprintf(url,sizeof(url),"/api/v1/producer/insert/%s",cu->name);
     
     if(http_post(h,url,buffer,strlen(buffer),buffer_rx,sizeof(buffer_rx))==0){
         p->tot_push_time+= (getEpoch() -ts); 
@@ -400,3 +444,59 @@ float chaos_crest_reg_time(chaos_crest_handle_t h){
     return 0;
          
 }
+
+
+int chaos_crest_cu_cmd(chaos_crest_handle_t h,const char*cuname,const char*cmd,const char* args){
+  char command[1024];
+  int ret;
+  _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
+  if(cmd==0 || cuname==0)
+    return -1;
+
+  if(args){
+    sprintf(command,"CU?dev=%s&cmd=%s&parm=%s",cuname,cmd,args);
+  } else {
+    sprintf(command,"CU?dev=%s&cmd=%s",cuname,cmd);
+  }
+  ret = http_request(p->sock_fd,"GET",p->wan_url, "chaos_crest_cu_cmd",command, "application/json",0, 0, 0);
+  if(ret==200)
+    return 0;
+  
+  return ret;
+}
+
+uint64_t chaos_crest_cu_get(chaos_crest_handle_t h,const char*cuname,char*output,int maxsize){
+  char cmd[256];
+  _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
+  int ret;
+  if(output==0 || cuname==0)
+    return -1;
+  sprintf(cmd,"CU?dev=%s&cmd=status",cuname);
+  ret = http_request(p->sock_fd,"GET",p->wan_url, "chaos_crest_cu_get",cmd, "application/json",0, output, maxsize);
+  if(ret==200)
+    return 0;
+  
+  return ret;
+}
+
+uint64_t chaos_crest_cu_get_channel(chaos_crest_handle_t h,const char*cuname,const char*channame,char*output,int maxsize){
+  char buf[MAXBUFFER];
+  uint64_t ret;
+  ret=  chaos_crest_cu_get(h,cuname,buf,sizeof(buf));
+  if(ret>0){
+    char search[256];
+    char *pnt,*pntt;
+    sprintf(search,"\"%s\":\"",channame);
+    pnt=strstr(buf,search);
+    if(pnt){
+      pnt+=strlen(search);
+      pntt=strchr(pnt,"\"");
+      if(pntt)*pntt=0;
+      strncpy(output,pnt,maxsize);
+      return ret;
+    }
+  }
+  return ret;
+}
+
+

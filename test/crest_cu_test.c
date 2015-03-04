@@ -16,19 +16,19 @@ printf("%s <wan proxy url> [iterations]\n",argv[0]);\
 exit(1)
 
 DEFINE_CU_DATASET(test_cu)
-DEFINE_ATTRIBUTE("config","configuration channel",DIR_IO,TYPE_INT32,sizeof(int32_t))
+DEFINE_ATTRIBUTE("config","configuration channel",DIR_INPUT,TYPE_INT32,sizeof(int32_t))
 DEFINE_ATTRIBUTE("channel0","1 channel",DIR_OUTPUT,TYPE_INT32,sizeof(int32_t))
 DEFINE_ATTRIBUTE("channel1","2 channel",DIR_OUTPUT,TYPE_INT64,sizeof(int64_t))
 DEFINE_ATTRIBUTE("channel2_double","3 channel",DIR_OUTPUT,TYPE_DOUBLE,sizeof(double))
-DEFINE_ATTRIBUTE("channel3_stringa","4 channel",DIR_OUTPUT,TYPE_STRING,128)
+//DEFINE_ATTRIBUTE("channel3_stringa","4 channel",DIR_OUTPUT,TYPE_STRING,128)
 END_CU_DATASET;        
 
 DEFINE_CU_DATASET(test_cu2)
-DEFINE_ATTRIBUTE("config","configuration channel",DIR_IO,TYPE_INT32,sizeof(int32_t))
+DEFINE_ATTRIBUTE("config","configuration channel",DIR_INPUT,TYPE_INT32,sizeof(int32_t))
 DEFINE_ATTRIBUTE("channel00","first channel",DIR_OUTPUT,TYPE_INT32,sizeof(int32_t))
 DEFINE_ATTRIBUTE("channel10","2 channel",DIR_OUTPUT,TYPE_INT64,sizeof(int64_t))
 DEFINE_ATTRIBUTE("channel20_double","second channel",DIR_OUTPUT,TYPE_DOUBLE,sizeof(double))
-DEFINE_ATTRIBUTE("channel30_stringa","thierd channel",DIR_OUTPUT,TYPE_STRING,128)
+//DEFINE_ATTRIBUTE("channel30_stringa","thierd channel",DIR_OUTPUT,TYPE_STRING,128)
 END_CU_DATASET;   
      
         
@@ -38,11 +38,11 @@ int main(int argc, char** argv) {
     chaos_crest_handle_t handle;
     uint32_t cu0,cu1;
     // data variables
-    int idata32=0;
+    int32_t idata32=0;
     int64_t idata64=0;
     double fdata=0;
-    char sdata[128];
-    
+    //    char sdata[128];
+    int ret;
     if(argc<2){
         USAGE;
     }
@@ -68,14 +68,14 @@ int main(int argc, char** argv) {
         exit(1);
     }
     printf("* connecting to %s...\n",url);
-    if(chaos_crest_connect(handle)!=0){
-        printf("## cannot connect to %s\n",url);
+    if((ret=chaos_crest_connect(handle))!=0){
+      printf("## cannot connect to %s, error:%d\n",url,ret);
         exit(1);
     }
     printf("* registering to %s...\n",url);
     // 0 means all defined CU
-    if(chaos_crest_register(handle,0)!=0){
-        printf("## cannot register CUs\n");
+    if((ret=chaos_crest_register(handle,0))!=0){
+      printf("## cannot register CUs, error:%d\n",ret);
         exit(1);
     }
 
@@ -85,18 +85,25 @@ int main(int argc, char** argv) {
         fdata=3.14*iterations;
         //positional attribute, 0 is the first output attribute of cu0
         chaos_crest_update(handle,cu0,0,&idata32);
-        chaos_crest_update(handle,cu0,1,&idata64);
+	printf("valore %lld 0x%x\n",*(int64_t*)&idata64,&idata64);
+        chaos_crest_update(handle,cu0,1,(void*)&idata64);
         chaos_crest_update(handle,cu0,2,&fdata);
-        sprintf(sdata,"test stringa %d",idata32);
-        chaos_crest_update(handle,cu0,3,sdata);
+	//        sprintf(sdata,"test stringa %d",idata32);
+	//        chaos_crest_update(handle,cu0,3,sdata);
         idata32++;
         idata64+=2;
         fdata=3.14*iterations;
         chaos_crest_update(handle,cu1,0,&idata32);
         chaos_crest_update(handle,cu1,1,&idata64);
         chaos_crest_update(handle,cu1,2,&fdata);
-        sprintf(sdata,"test2 stringa %d",idata32);
-        chaos_crest_update(handle,cu1,3,sdata);
+	//        sprintf(sdata,"test2 stringa %d",idata32);
+	//        chaos_crest_update(handle,cu1,3,sdata);
+
+	if((ret=chaos_crest_push(handle,0))!=0){
+	  printf("## error pushing ret:%d\n",ret);
+	  
+	}
+
     }
     return (EXIT_SUCCESS);
 }

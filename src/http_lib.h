@@ -7,7 +7,7 @@
 #ifndef _HTTP_POST_H_
 #define _HTTP_POST_H_
 
-int http_request(int sock, char* hostname, char* api, char*content, char* parameters, char* message, int size);
+int http_request(int sock, const char*method,char* hostname, const char*agent,char* api, char*content, char* parameters, char* message, int size);
 
 #define HTTP_GET_FILE_RETRY 50
 #define HTTP_POST_FILE_RETRY 30
