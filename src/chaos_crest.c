@@ -20,7 +20,7 @@
 #include <netdb.h>
 #define MAXDIGITS 16
 #define MAXBUFFER 8192
-#define CREST_DEBUG
+
 #ifdef CREST_DEBUG
 #define DPRINT(x,ARGS...) printf(x, ##ARGS)
 #else
@@ -94,7 +94,7 @@ static const char* typeToFormat(int type){
     } else if(type==TYPE_INT64){
              return "lld";
     } else if(type==TYPE_DOUBLE){
-             return "llf";
+             return "f";
     } else if(type==TYPE_STRING){
              return "s";
              
@@ -229,7 +229,7 @@ uint32_t chaos_crest_add_cu(chaos_crest_handle_t h,const char*name,chaos_ds_t* d
             p->cus[p->ncus].outds[cnt_out].size= dsin[cnt].size;
             stype=typeToString(dsin[cnt].type);
             sformat=typeToFormat(dsin[cnt].type);
-            snprintf(stringa,sizeof(stringa),"\"%s\":\"%s:%%%s",dsin[cnt].name,stype,sformat);
+            snprintf(stringa,sizeof(stringa),"\"%s\":\"%s:%%%s\"",dsin[cnt].name,stype,sformat);
             p->cus[p->ncus].outds[cnt_out].format=strdup(stringa);
 	    p->cus[p->ncus].outds[cnt_out].size= (strlen(stringa)+1+dsin[cnt].size+MAXDIGITS) ;
 	    DPRINT("allocating %d bytes\n",p->cus[p->ncus].outds[cnt_out].size);
@@ -308,7 +308,7 @@ static int dump_attribute_desc(ds_t *attr,char*dir,char*buffer,int size,int last
 
 static int dump_attribute_value(ds_t *attr,char*buffer,int size,int last){
     
-    return snprintf(buffer,size,"{%s\"}%s",
+    return snprintf(buffer,size,"%s%s",
             attr->data,last?"":",");
 }
 static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){

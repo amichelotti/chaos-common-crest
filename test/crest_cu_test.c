@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
         fdata=3.14*iterations;
         //positional attribute, 0 is the first output attribute of cu0
         chaos_crest_update(handle,cu0,0,&idata32);
-	printf("valore %lld 0x%x\n",*(int64_t*)&idata64,&idata64);
+	
         chaos_crest_update(handle,cu0,1,(void*)&idata64);
         chaos_crest_update(handle,cu0,2,&fdata);
 	//        sprintf(sdata,"test stringa %d",idata32);

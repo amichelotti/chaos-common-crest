@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 2.6)
 IF( DEFINED ENV{CHAOS_BUNDLE} )
   include($ENV{CHAOS_BUNDLE}/tools/project_template/CMakeChaos.txt)
 ENDIF()
+# HTTP_LIB_DEBUG
+# CREST_DEBUG
 ADD_DEFINITIONS(-g -O2)
 INCLUDE_DIRECTORIES(src)
 

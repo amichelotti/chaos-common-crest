@@ -12,7 +12,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#define HTTP_LIB_DEBUG
+
 #ifdef HTTP_LIB_DEBUG
 #define DPRINT(x,ARGS...) printf(x, ##ARGS)
 #else
