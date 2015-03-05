@@ -13,4 +13,5 @@ ADD_EXECUTABLE(crest_test ${crest_test_src})
 ADD_LIBRARY(common-crest SHARED ${crest_src} )
 TARGET_LINK_LIBRARIES(crest_test common-crest)
 INSTALL_TARGETS(/lib  common-crest)
+INSTALL_TARGETS(/bin  crest_test)
 
