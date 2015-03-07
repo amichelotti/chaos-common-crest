@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
     int64_t idata64=0;
     double fdata=0;
     //    char sdata[128];
-    int ret;
+    int ret,cnt;
     if(argc<2){
         USAGE;
     }
@@ -78,8 +78,9 @@ int main(int argc, char** argv) {
       printf("## cannot register CUs, error:%d\n",ret);
         exit(1);
     }
-
-    while(iterations--){
+    printf("* registration average  %f ms...\n",chaos_crest_reg_time(handle));
+    printf("* pushing to %s...\n",url);
+    for(cnt=0;cnt<iterations;cnt++){
         idata32++;
         idata64+=2;
         fdata=3.14*iterations;
@@ -101,10 +102,11 @@ int main(int argc, char** argv) {
 
 	if((ret=chaos_crest_push(handle,0))!=0){
 	  printf("## error pushing ret:%d\n",ret);
-	  
+	  exit(1);
 	}
 
     }
+    printf("* %d iteration average %f ms per iteration...\n",iterations,chaos_crest_push_time(handle));
     return (EXIT_SUCCESS);
 }
 

@@ -372,7 +372,7 @@ static int push_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){
     
     cu=p->cus + (cu_uid-1);
     ts =getEpoch();
-    snprintf(buffer,size,"{\"dpck_ts\":\"int64:%llu\"%s",getEpoch(),cu->nout>0?",":"");
+    snprintf(buffer,size,"{\"dpck_ts\":%llu%s",getEpoch(),cu->nout>0?",":"");
     for(cnt=0;cnt<cu->nout;cnt++){
         csize=strlen(buffer);
         pnt=buffer+csize;
