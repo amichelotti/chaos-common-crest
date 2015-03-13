@@ -6,6 +6,9 @@
  */
 #ifndef _HTTP_POST_H_
 #define _HTTP_POST_H_
+int http_client_init(int sock);
+int http_perform_request(int sock,const char*method,char* hostname, const char*agent,char* api, char*content, char* parameters);
+int http_get_answer(char* message, int size);
 
 int http_request(int sock, const char*method,char* hostname, const char*agent,char* api, char*content, char* parameters, char* message, int size);
 

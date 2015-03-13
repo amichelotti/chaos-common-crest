@@ -166,6 +166,7 @@ int getResponse(int sock, char*buffer, int max_size) {
 	      if(term){
 		debug_buffer[cntb-1]=0;
 		DPRINT("debug(%d)=>\"%s\"\n",strlen(debug_buffer),debug_buffer);
+
 		cntb=0;
 
 	      } else{
@@ -283,3 +284,13 @@ int http_request(int sock, const char*method,char* hostname, const char*agent,ch
 
     return getResponse(sock, message, size);
 }
+
+
+
+int http_client_init(int sock){
+}
+int http_perform_request(int sock,const char*method,char* hostname, const char*agent,char* api, char*content, char* parameters){
+}
+int http_get_answer(char* message, int size);
+
+
