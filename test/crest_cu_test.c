@@ -107,6 +107,7 @@ int main(int argc, char** argv) {
 
     }
     printf("* %d iteration average %f ms per iteration...\n",iterations,chaos_crest_push_time(handle));
+    chaos_crest_close(handle);
     return (EXIT_SUCCESS);
 }
 

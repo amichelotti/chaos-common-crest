@@ -17,11 +17,12 @@ typedef struct _chaos_ds{
     int        size;
 } chaos_ds_t;
 
-#define TYPE_INT32 0
-#define TYPE_INT64 1
-#define TYPE_DOUBLE 2
-#define TYPE_STRING 3
-#define TYPE_BUFFER 4
+#define TYPE_INT32 0x1
+#define TYPE_INT64 0x2
+#define TYPE_DOUBLE 0x4
+#define TYPE_STRING 0x8
+#define TYPE_BUFFER 0x10
+#define TYPE_VECTOR 0x1000
 
 #define DIR_INPUT 0
 #define DIR_OUTPUT 1

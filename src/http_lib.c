@@ -6,12 +6,28 @@
  */
 #include <time.h>
 #include <stdio.h>
-
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <pthread.h>
+#include <assert.h>
+#define MAXBUFFER 8192
 
+typedef struct _http {
+   int sock;
+   pthread_t pid;
+   pthread_mutex_t mutex;
+   pthread_cond_t cond;
+   char answer[MAXBUFFER];
+   int retcode;
+   int exit;
+   unsigned long sendid;
+   unsigned long recvid;
+   unsigned long sentb;
+   unsigned long recvb;
+} _http_handle_t;
 
 #ifdef HTTP_LIB_DEBUG
 #define DPRINT(x,ARGS...) printf(x, ##ARGS)
@@ -20,13 +36,56 @@
 #endif
 
 #include "http_lib.h"
-static volatile unsigned long *brecv = 0, *bsent = 0;
 
-int http_init_stats(unsigned long* byte_sent, unsigned long* byte_recv) {
-    brecv = byte_recv;
-    bsent = byte_sent;
+static void* receive(void*pp){
+    _http_handle_t* p=(_http_handle_t*)pp;
+    while(p->exit==0){
+        pthread_mutex_lock(&p->mutex);
+        p->retcode=getResponse(p->sock,p->answer,MAXBUFFER);
+        pthread_cond_signal(&p->cond);
+        pthread_mutex_unlock(&p->mutex);
+    }
+}
+http_handle_t http_client_init(int sock){
+    _http_handle_t* p=calloc(1,sizeof(_http_handle_t));
+    assert(p);
+    p->sock=sock;
+    pthread_mutex_init(&p->mutex, NULL);
+    pthread_cond_init(&p->cond,NULL);
+    if(pthread_create(&p->pid,NULL,receive,(void*)p)==0){
+        return p;
+    }
+    free((void*)p);
     return 0;
 }
+
+
+void http_client_deinit(http_handle_t h){
+    _http_handle_t* p=h;
+    p->exit=1;
+    pthread_mutex_destroy(&p->mutex);
+    pthread_cond_broadcast(&p->cond);
+    pthread_cond_destroy(&p->cond);
+    pthread_join(p->pid,NULL);
+    free(p);
+}
+
+int http_get_answer(http_handle_t h, char* message, int size){
+    _http_handle_t* p=(_http_handle_t*)h;
+    pthread_mutex_lock(&p->mutex);
+    memcpy(message,p->answer,size<strlen(p->answer)?size:strlen(p->answer) +1);
+    pthread_mutex_unlock(&p->mutex);
+    return p->retcode;
+}
+int http_wait_answer(http_handle_t h, char* message, int size){
+    _http_handle_t* p=(_http_handle_t*)h;
+    pthread_mutex_lock(&p->mutex);
+    pthread_cond_wait(&p->cond,&p->mutex);
+    pthread_mutex_unlock(&p->mutex);
+    return http_get_answer(h,message,size);
+}
+
+
 
 #define SEND_STR(sock,buffer,STR,ARGS...) {\
   int ret;\
@@ -59,11 +118,13 @@ static int add_form_file_data(char*buffer, char*name, char*fname, char*delim) {
     return strlen(temp);
 }
 
-static int getResponseHeader(int sock, int retryn, int*size_body,int*encoding) {
-    int ret, cnt=0, retcode = HTTP_ERROR_PARSING_HEADER;
-    int response_size;
-    int retry = retryn;
-    int cntb=0;
+static int getResponseHeader(http_handle_t h, int retryn, int*size_body,int*encoding) {
+  _http_handle_t* p=(_http_handle_t*)h;
+  int sock=p->sock;
+  int ret, cnt=0, retcode = HTTP_ERROR_PARSING_HEADER;
+  int response_size;
+  int retry = retryn;
+  int cntb=0;
     char stringa[256];
     char sencoding[256];
     char buf;
@@ -72,7 +133,7 @@ static int getResponseHeader(int sock, int retryn, int*size_body,int*encoding) {
     *size_body=0;
     *encoding=0;
     while (((ret = read(sock, &buf, 1)) >= 0) && (retry > 0)) {
-        if (brecv) (*brecv) += ret;
+	p->recvb+=ret;
         if (ret <= 0) {
             retry--;
             DPRINT("Timeout reading retry %d\n", retry);
@@ -127,11 +188,13 @@ static int getResponseHeader(int sock, int retryn, int*size_body,int*encoding) {
     return retcode;
 }
 
-int getResponse(int sock, char*buffer, int max_size) {
-    int ret;
-    int retcode = HTTP_ERROR_PARSING_POST_RESPONSE, response_size = 0;
-    int cnt = 0, cntb = 0,copy_buffer=0,enc_cnt=0;
-    int retry = HTTP_POST_FILE_RETRY;
+int getResponse(http_handle_t h, char*buffer, int max_size) {
+  _http_handle_t* p=(_http_handle_t*)h;
+  int sock=p->sock;
+  int ret;
+  int retcode = HTTP_ERROR_PARSING_POST_RESPONSE, response_size = 0;
+  int cnt = 0, cntb = 0,copy_buffer=0,enc_cnt=0;
+  int retry = HTTP_POST_FILE_RETRY;
     char buf;
     char encoding_buf[256];
 #ifdef DEBUG
@@ -143,7 +206,7 @@ int getResponse(int sock, char*buffer, int max_size) {
     int fetch_term=0;
     int fetch_blank_line=0;
     *buffer = 0;
-    if ((retcode = getResponseHeader(sock, HTTP_POST_FILE_RETRY, &response_size,&encoding)) > 0) {
+    if ((retcode = getResponseHeader(h, HTTP_POST_FILE_RETRY, &response_size,&encoding)) > 0) {
       if(response_size==0){
 	DPRINT("Length unspecified\n");
       }
@@ -152,85 +215,85 @@ int getResponse(int sock, char*buffer, int max_size) {
       } else {
 	copy_buffer = response_size;
       }
-        while (((ret = read(sock, &buf, 1)) >= 0) && (retry > 0)) {
-            if (brecv) (*brecv) += ret;
-            if (ret == 0) {
-                retry--;
-                DPRINT("Timeout reading retry %d", retry);
-		usleep(20000);
-                continue;
-            } else if (ret > 0) {
-	      term=((buf=='\n') && (last_char=='\r'));
-	      last_char=buf;
+      while (((ret = read(sock, &buf, 1)) >= 0) && (retry > 0)) {
+	p->recvb+=ret;
+	if (ret == 0) {
+	  retry--;
+	  DPRINT("Timeout reading retry %d", retry);
+	  usleep(20000);
+	  continue;
+	} else if (ret > 0) {
+	  term=((buf=='\n') && (last_char=='\r'));
+	  last_char=buf;
 #ifdef DEBUG
-	      if(term){
-		debug_buffer[cntb-1]=0;
-		DPRINT("debug(%d)=>\"%s\"\n",strlen(debug_buffer),debug_buffer);
-
-		cntb=0;
-
-	      } else{
-		debug_buffer[cntb++]=buf;
-	      }
+	  if(term){
+	    debug_buffer[cntb-1]=0;
+	    DPRINT("debug(%d)=>\"%s\"\n",strlen(debug_buffer),debug_buffer);
+	    cntb=0;
+	    
+	  } else{
+	    debug_buffer[cntb++]=buf;
+	  }
 #endif
-	      if(fetch_blank_line && term){
-		DPRINT("end of body\n");
-		break;
-	      }
-	      if(fetch_term && term){
-		DPRINT("fetching terminator after buffer (%d/%d/%d)\"%s\"\n",strlen(buffer),cnt,max_size,buffer);
-		fetch_term=0;
-		continue;
-	      }
-	      retry = HTTP_POST_FILE_RETRY;
-	      if((copy_buffer>0)){
-		if((cnt < (max_size-1))){
-		  buffer[cnt++] = buf;
-		  buffer[cnt]=0;
-		}
-		copy_buffer--;
-		fetch_term=1;
-	      } else {
-		if(encoding==1){
-		    if(term){
-		      if(enc_cnt>0){
-			encoding_buf[enc_cnt-1]=0;
-			copy_buffer=strtoul(encoding_buf,0,16);
-			if(copy_buffer == 0){
-			  DPRINT("done after encoding received %d",cnt);
-			  fetch_blank_line=1;
-			}
-			DPRINT("encode still %d bytes\n",copy_buffer);
-			enc_cnt=0;
-		      }
-		    } else {
-		      if(enc_cnt<sizeof(encoding_buf)-1){
-			encoding_buf[enc_cnt++]=buf;
-		      }
-		    }
-		  } else {
-		    DPRINT("done received %d",cnt);
-		    fetch_blank_line=1;
-
-		  }
-		}	  
-	    } else {
-	      //an error occurred
-	      if(cnt==response_size){
-		DPRINT("%% error occurred but the transfer is ended %d bytes, ret=%d",cnt,retcode);
-		return retcode;
-	      } else {
-		return -5;
-	      }
+	  if(fetch_blank_line && term){
+	    DPRINT("end of body\n");
+	    break;
+	  }
+	  if(fetch_term && term){
+	    DPRINT("fetching terminator after buffer (%d/%d/%d)\"%s\"\n",strlen(buffer),cnt,max_size,buffer);
+	    fetch_term=0;
+	    continue;
+	  }
+	  retry = HTTP_POST_FILE_RETRY;
+	  if((copy_buffer>0)){
+	    if((cnt < (max_size-1))){
+	      buffer[cnt++] = buf;
+	      buffer[cnt]=0;
 	    }
+	    copy_buffer--;
+	    fetch_term=1;
+	  } else {
+	    if(encoding==1){
+	      if(term){
+		if(enc_cnt>0){
+		  encoding_buf[enc_cnt-1]=0;
+		  copy_buffer=strtoul(encoding_buf,0,16);
+		  if(copy_buffer == 0){
+		    DPRINT("done after encoding received %d",cnt);
+		    fetch_blank_line=1;
+		  }
+		  DPRINT("encode still %d bytes\n",copy_buffer);
+		  enc_cnt=0;
+		}
+	      } else {
+		if(enc_cnt<sizeof(encoding_buf)-1){
+		  encoding_buf[enc_cnt++]=buf;
+		}
+	      }
+	    } else {
+	      DPRINT("done received %d",cnt);
+	      fetch_blank_line=1;
+	      
+	    }
+	  }	  
+	} else {
+	      //an error occurred
+	  if(cnt==response_size){
+	    DPRINT("%% error occurred but the transfer is ended %d bytes, ret=%d",cnt,retcode);
+	    return retcode;
+	  } else {
+	    return -5;
+	  }
 	}
-	if (retry < 0) {
-	  DPRINT("timeout");
-	  return HTTP_ERROR_TIMEOUT;
-	}
+      }
+      if (retry < 0) {
+	DPRINT("timeout");
+	return HTTP_ERROR_TIMEOUT;
+      }
     }
     return retcode;
 }
+
 
 /*
 ========================
@@ -256,9 +319,9 @@ $binarydata
 --AaB03x--
  */
 
-
-int http_request(int sock, const char*method,char* hostname, const char*agent,char* api, char*content,char* parameters, char* message, int size) {
-  int ret;
+int http_perform_request(http_handle_t h,const char*method,char* hostname, const char*agent,char* api, char*content, char* parameters){
+  _http_handle_t* p=(_http_handle_t*)h;
+  int ret; 
   char buffer[4096];
   char *pnt=buffer;
   *buffer = 0;
@@ -274,23 +337,27 @@ int http_request(int sock, const char*method,char* hostname, const char*agent,ch
   ADD_HEADER_STR(pnt,sizeof(buffer), "Content-Type: %s\r\n",content);
   ADD_HEADER_STR(pnt,sizeof(buffer), "\r\n%s\r\n", parameters);
 
-    if((ret=write(sock,buffer,strlen(buffer)))!=strlen(buffer)){
+  if((ret=write(p->sock,buffer,strlen(buffer)))!=strlen(buffer)){
       DPRINT("#error sending, ret =%d\n",ret);
       return -4;
     } else {
       DPRINT("sent header and body :\n%s\n",buffer);
-      if(bsent) (*bsent)+=ret;
+      p->sentb+=ret;
+      p->sendid++;
     }
 
-    return getResponse(sock, message, size);
+  return ret;
 }
+ 
+ int http_request(http_handle_t h, const char*method,char* hostname, const char*agent,char* api, char*content,char* parameters, char* message, int size) {
+   int ret;
+   
+   
+   if((ret=http_perform_request(h,method,hostname, agent,api, content, parameters))>0){
+     return http_wait_answer(h,message,size);
+   }
 
-
-
-int http_client_init(int sock){
-}
-int http_perform_request(int sock,const char*method,char* hostname, const char*agent,char* api, char*content, char* parameters){
-}
-int http_get_answer(char* message, int size);
+   return ret;
+ }
 
 

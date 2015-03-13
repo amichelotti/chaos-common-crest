@@ -18,6 +18,7 @@
 #include <assert.h>
 #include <unistd.h>
 #include <netdb.h>
+#include <http_lib.h>
 #define MAXDIGITS 16
 #define MAXBUFFER 8192
 
@@ -49,8 +50,9 @@ typedef struct _cu {
 typedef struct _chaos_crest_handle{
     char* wan_url;
     int sock_fd;
-char*hostname;
-  
+    char*hostname;
+    http_handle_t http;
+
     cu_t *cus;
     int ncus;
     struct sockaddr_in sin;
@@ -64,7 +66,7 @@ char*hostname;
 static int http_post(chaos_crest_handle_t h,char*api,char*trx_buffer,int tsizeb,char*rx_buffer,int rsizeb){
   _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
   int ret;
-  ret = http_request(p->sock_fd,"POST",p->hostname, "chaos_crest",api, "application/json",trx_buffer, rx_buffer, rsizeb);
+  ret = http_request(p->http,"POST",p->hostname, "chaos_crest",api, "application/json",trx_buffer, rx_buffer, rsizeb);
   if(ret==200)
     return 0;
   
@@ -158,7 +160,15 @@ chaos_crest_handle_t chaos_crest_open(const char* chaoswan_url) {
     }
     bcopy(host_addr->h_addr, &h->sin.sin_addr.s_addr, host_addr->h_length);
     h->hostname=strdup(host_addr->h_name);
+    h->http=http_client_init(sock);
+    if(h->http==0){
+        chaos_crest_close(h);
+        printf("## Unable to initialize http resources\n");
+
+        return 0;
+    }
     DPRINT("* open socket %d \"%s\"->\"%s\":\"%d\"\n",h->sock_fd,h->hostname,hostname,port);
+    
     return h;
 }
 
@@ -297,6 +307,43 @@ int chaos_crest_update_by_name(chaos_crest_handle_t h,uint32_t cu_uid,char* attr
 }
 
 int chaos_crest_close(chaos_crest_handle_t h){
+    int cnt;
+    _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
+    http_client_deinit(p->http);
+    cu_t* cus= p->cus;
+    close(p->sock_fd);
+    for(cnt=0;cnt<p->ncus;cnt++){
+        int cntt;
+        if(cus[cnt].name){
+	  free((void*)cus[cnt].name);
+            cus[cnt].name=0;
+        }
+        for(cntt=0;cnt<cus[cnt].nin;cntt++){
+            if(cus[cnt].inds[cntt].name){
+                free((void*)cus[cnt].inds[cntt].name);
+                cus[cnt].inds[cntt].name=0;
+            }
+            if(cus[cnt].inds[cntt].desc){
+                free((void*)cus[cnt].inds[cntt].desc);
+                cus[cnt].inds[cntt].desc=0;
+            }
+        }
+        for(cntt=0;cnt<cus[cnt].nout;cntt++){
+            if(cus[cnt].outds[cntt].name){
+                free((void*)cus[cnt].outds[cntt].name);
+                cus[cnt].outds[cntt].name=0;
+            }
+            if(cus[cnt].outds[cntt].desc){
+                free((void*)cus[cnt].outds[cntt].desc);
+                cus[cnt].outds[cntt].desc=0;
+            }
+            if(cus[cnt].outds[cntt].data){
+                free((void*)cus[cnt].outds[cntt].data);
+                cus[cnt].outds[cntt].data=0;
+            }
+        }
+    }
+    
     return 0;
 }
 
@@ -458,7 +505,7 @@ int chaos_crest_cu_cmd(chaos_crest_handle_t h,const char*cuname,const char*cmd,c
   } else {
     sprintf(command,"CU?dev=%s&cmd=%s",cuname,cmd);
   }
-  ret = http_request(p->sock_fd,"GET",p->wan_url, "chaos_crest_cu_cmd",command, "application/json",0, 0, 0);
+  ret = http_request(p->http,"GET",p->wan_url, "chaos_crest_cu_cmd",command, "application/json",0, 0, 0);
   if(ret==200)
     return 0;
   
@@ -472,7 +519,7 @@ uint64_t chaos_crest_cu_get(chaos_crest_handle_t h,const char*cuname,char*output
   if(output==0 || cuname==0)
     return -1;
   sprintf(cmd,"CU?dev=%s&cmd=status",cuname);
-  ret = http_request(p->sock_fd,"GET",p->wan_url, "chaos_crest_cu_get",cmd, "application/json",0, output, maxsize);
+  ret = http_request(p->http,"GET",p->wan_url, "chaos_crest_cu_get",cmd, "application/json",0, output, maxsize);
   if(ret==200)
     return 0;
   
@@ -490,7 +537,7 @@ uint64_t chaos_crest_cu_get_channel(chaos_crest_handle_t h,const char*cuname,con
     pnt=strstr(buf,search);
     if(pnt){
       pnt+=strlen(search);
-      pntt=strchr(pnt,"\"");
+      pntt=strchr(pnt,'\"');
       if(pntt)*pntt=0;
       strncpy(output,pnt,maxsize);
       return ret;
