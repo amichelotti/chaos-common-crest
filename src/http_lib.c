@@ -31,10 +31,13 @@ int http_init_stats(unsigned long* byte_sent, unsigned long* byte_recv) {
 #define SEND_STR(sock,buffer,STR,ARGS...) {\
   int ret;\
   if(STR!=NULL){\
-    snprintf(buffer,sizeof(buffer),STR, ## ARGS);	}		\			
+    snprintf(buffer,sizeof(buffer),STR, ## ARGS);	}		\
 if((ret=write(sock,buffer,strlen(buffer)))!=strlen(buffer)) {if((ret>0) && bsent) *bsent+=ret;DPRINT("## Error sending ret= %d, exp %d\n",ret,strlen(buffer));return -4;} \
   DPRINT("->(%d)%s\n",ret,buffer);				\
       if(bsent) (*bsent)+=ret;}
+
+#define ADD_HEADER_STR(_buf,maxsize,STR,ARGS...) {	\
+    _buf+=snprintf(_buf,maxsize-strlen(_buf),STR,## ARGS);}
 
 static int add_form_data(char*buffer, char*name, char*val, char*delim) {
     char temp[1024];
@@ -131,7 +134,9 @@ int getResponse(int sock, char*buffer, int max_size) {
     int retry = HTTP_POST_FILE_RETRY;
     char buf;
     char encoding_buf[256];
+#ifdef DEBUG
     char debug_buffer[4096];
+#endif
     int encoding;
     char last_char=0;
     int term;
@@ -147,17 +152,17 @@ int getResponse(int sock, char*buffer, int max_size) {
       } else {
 	copy_buffer = response_size;
       }
-      
         while (((ret = read(sock, &buf, 1)) >= 0) && (retry > 0)) {
             if (brecv) (*brecv) += ret;
             if (ret == 0) {
                 retry--;
                 DPRINT("Timeout reading retry %d", retry);
-                usleep(200000);
+		usleep(20000);
                 continue;
             } else if (ret > 0) {
 	      term=((buf=='\n') && (last_char=='\r'));
 	      last_char=buf;
+#ifdef DEBUG
 	      if(term){
 		debug_buffer[cntb-1]=0;
 		DPRINT("debug(%d)=>\"%s\"\n",strlen(debug_buffer),debug_buffer);
@@ -166,6 +171,7 @@ int getResponse(int sock, char*buffer, int max_size) {
 	      } else{
 		debug_buffer[cntb++]=buf;
 	      }
+#endif
 	      if(fetch_blank_line && term){
 		DPRINT("end of body\n");
 		break;
@@ -251,23 +257,29 @@ $binarydata
 
 
 int http_request(int sock, const char*method,char* hostname, const char*agent,char* api, char*content,char* parameters, char* message, int size) {
-    char buffer[4096];
-    *buffer = 0;
-    DPRINT("http_request (%d) method:%s hostname:%s api:%s, max_size %d\n",sock,method,hostname,api,size);
-    SEND_STR(sock, buffer, "%s %s HTTP/1.1\r\n", method,api);
-    SEND_STR(sock, buffer, "%s", "Accept: */*\r\n");
-    SEND_STR(sock, buffer, "%s", "User-Agent: %s\r\n",agent);
-    SEND_STR(sock, buffer, "%s", "Connection: Keep-Alive\r\n");
-    SEND_STR(sock, buffer, "Content-Length: %d\r\n", (int) strlen(parameters));
-    SEND_STR(sock, buffer, "%s", "Accept-Language: en-us\r\n");
-    SEND_STR(sock, buffer, "%s", "Accept-Encoding: gzip, deflate\r\n");
-    SEND_STR(sock, buffer, "Host:%s\r\n", hostname);
-    SEND_STR(sock, buffer, "Content-Type: %s\r\n",content);
+  int ret;
+  char buffer[4096];
+  char *pnt=buffer;
+  *buffer = 0;
+  DPRINT("http_request (%d) method:%s hostname:%s api:%s, max_size %d\n",sock,method,hostname,api,size);
+  ADD_HEADER_STR(pnt,sizeof(buffer), "%s %s HTTP/1.1\r\n", method,api);
+  ADD_HEADER_STR(pnt,sizeof(buffer), "Accept: */*\r\n");
+  ADD_HEADER_STR(pnt,sizeof(buffer), "User-Agent: %s\r\n",agent);
+  ADD_HEADER_STR(pnt,sizeof(buffer), "Connection: Keep-Alive\r\n");
+  ADD_HEADER_STR(pnt,sizeof(buffer), "Content-Length: %d\r\n", (int) strlen(parameters));
+  ADD_HEADER_STR(pnt,sizeof(buffer), "Accept-Language: en-us\r\n");
+  ADD_HEADER_STR(pnt,sizeof(buffer), "Accept-Encoding: gzip, deflate\r\n");
+  ADD_HEADER_STR(pnt,sizeof(buffer), "Host:%s\r\n", hostname);
+  ADD_HEADER_STR(pnt,sizeof(buffer), "Content-Type: %s\r\n",content);
+  ADD_HEADER_STR(pnt,sizeof(buffer), "\r\n%s\r\n", parameters);
 
+    if((ret=write(sock,buffer,strlen(buffer)))!=strlen(buffer)){
+      DPRINT("#error sending, ret =%d\n",ret);
+      return -4;
+    } else {
+      DPRINT("sent header and body :\n%s\n",buffer);
+      if(bsent) (*bsent)+=ret;
+    }
 
-    SEND_STR(sock, buffer, "\r\n%s\r\n", parameters);
-
-    //    fflush(fdopen(sock,"w+"));
-    //    shutdown(sock,SHUT_WR);
     return getResponse(sock, message, size);
 }
