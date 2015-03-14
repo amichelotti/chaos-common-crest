@@ -40,15 +40,15 @@ typedef struct _http {
 static void* receive(void*pp){
     _http_handle_t* p=(_http_handle_t*)pp;
     while(p->exit==0){
-        pthread_mutex_lock(&p->mutex);
-        p->retcode=getResponse(p->sock,p->answer,MAXBUFFER);
+        p->retcode=getResponse(pp,p->answer,MAXBUFFER);
+	DPRINT("receive %d %d\n",p->sendid,p->recvid);
         pthread_cond_signal(&p->cond);
-        pthread_mutex_unlock(&p->mutex);
     }
 }
 http_handle_t http_client_init(int sock){
     _http_handle_t* p=calloc(1,sizeof(_http_handle_t));
     assert(p);
+    assert(sock);
     p->sock=sock;
     pthread_mutex_init(&p->mutex, NULL);
     pthread_cond_init(&p->cond,NULL);
@@ -63,15 +63,17 @@ http_handle_t http_client_init(int sock){
 void http_client_deinit(http_handle_t h){
     _http_handle_t* p=h;
     p->exit=1;
-    pthread_mutex_destroy(&p->mutex);
     pthread_cond_broadcast(&p->cond);
     pthread_cond_destroy(&p->cond);
-    pthread_join(p->pid,NULL);
+    pthread_mutex_destroy(&p->mutex);
+    pthread_cancel(p->pid);
+    //    pthread_join(p->pid,NULL);
     free(p);
 }
 
 int http_get_answer(http_handle_t h, char* message, int size){
     _http_handle_t* p=(_http_handle_t*)h;
+    DPRINT("get answer\n");
     pthread_mutex_lock(&p->mutex);
     memcpy(message,p->answer,size<strlen(p->answer)?size:strlen(p->answer) +1);
     pthread_mutex_unlock(&p->mutex);
@@ -80,7 +82,11 @@ int http_get_answer(http_handle_t h, char* message, int size){
 int http_wait_answer(http_handle_t h, char* message, int size){
     _http_handle_t* p=(_http_handle_t*)h;
     pthread_mutex_lock(&p->mutex);
-    pthread_cond_wait(&p->cond,&p->mutex);
+    DPRINT("sent %d recv %d\n",p->sendid,p->recvid);
+    if(p->sendid>=p->recvid){
+      DPRINT("waiting answer\n");
+      pthread_cond_wait(&p->cond,&p->mutex);
+    }
     pthread_mutex_unlock(&p->mutex);
     return http_get_answer(h,message,size);
 }
@@ -215,6 +221,8 @@ int getResponse(http_handle_t h, char*buffer, int max_size) {
       } else {
 	copy_buffer = response_size;
       }
+      pthread_mutex_lock(&p->mutex);
+      p->recvid++;
       while (((ret = read(sock, &buf, 1)) >= 0) && (retry > 0)) {
 	p->recvb+=ret;
 	if (ret == 0) {
@@ -278,6 +286,7 @@ int getResponse(http_handle_t h, char*buffer, int max_size) {
 	  }	  
 	} else {
 	      //an error occurred
+	  pthread_mutex_unlock(&p->mutex);
 	  if(cnt==response_size){
 	    DPRINT("%% error occurred but the transfer is ended %d bytes, ret=%d",cnt,retcode);
 	    return retcode;
@@ -291,6 +300,7 @@ int getResponse(http_handle_t h, char*buffer, int max_size) {
 	return HTTP_ERROR_TIMEOUT;
       }
     }
+    pthread_mutex_unlock(&p->mutex);
     return retcode;
 }
 
@@ -325,7 +335,7 @@ int http_perform_request(http_handle_t h,const char*method,char* hostname, const
   char buffer[4096];
   char *pnt=buffer;
   *buffer = 0;
-  DPRINT("http_request (%d) method:%s hostname:%s api:%s, max_size %d\n",sock,method,hostname,api,size);
+  DPRINT("http_request (%d) method:%s hostname:%s api:%s, max_size %d\n",p->sock,method,hostname,api,sizeof(buffer));
   ADD_HEADER_STR(pnt,sizeof(buffer), "%s %s HTTP/1.1\r\n", method,api);
   ADD_HEADER_STR(pnt,sizeof(buffer), "Accept: */*\r\n");
   ADD_HEADER_STR(pnt,sizeof(buffer), "User-Agent: %s\r\n",agent);

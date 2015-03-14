@@ -66,7 +66,15 @@ typedef struct _chaos_crest_handle{
 static int http_post(chaos_crest_handle_t h,char*api,char*trx_buffer,int tsizeb,char*rx_buffer,int rsizeb){
   _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
   int ret;
-  ret = http_request(p->http,"POST",p->hostname, "chaos_crest",api, "application/json",trx_buffer, rx_buffer, rsizeb);
+  if(rx_buffer==0){
+    ret = http_perform_request(p->http,"POST",p->hostname, "chaos_crest",api, "application/json",trx_buffer);
+    if(ret>0){
+      return 0;
+    }
+    return ret;
+  } else{
+    ret = http_request(p->http,"POST",p->hostname, "chaos_crest",api, "application/json",trx_buffer, rx_buffer, rsizeb);
+  }
   if(ret==200)
     return 0;
   
@@ -212,18 +220,20 @@ uint32_t chaos_crest_add_cu(chaos_crest_handle_t h,const char*name,chaos_ds_t* d
 
     }
     if(ndsin>0){
-        p->cus[p->ncus].inds=(ds_t*)malloc(sizeof(ds_t)*ndsin);
-        p->cus[p->ncus].nin=ndsin;
+      p->cus[p->ncus].inds=(ds_t*)calloc(ndsin,sizeof(ds_t));
+      p->cus[p->ncus].nin=ndsin;
     }
   
     if(ndsout>0){
-        p->cus[p->ncus].outds=(ds_t*)malloc(sizeof(ds_t)*ndsout);
+      p->cus[p->ncus].outds=(ds_t*)calloc(ndsout,sizeof(ds_t));
         p->cus[p->ncus].nout=ndsout;
 
     }    
     for(cnt=0;cnt<dsitems;cnt++){
         if(((dsin[cnt].dir==DIR_INPUT )||(dsin[cnt].dir==DIR_IO))){
 	  p->cus[p->ncus].inds[cnt_in].name= strdup(dsin[cnt].name);
+	  //	  printf("name:%s 0x%x\n",p->cus[p->ncus].inds[cnt_in].name,p->cus[p->ncus].inds[cnt_in].name);
+
 	  p->cus[p->ncus].inds[cnt_in].desc= strdup(dsin[cnt].desc);
 	  p->cus[p->ncus].inds[cnt_in].type= dsin[cnt].type;
 	  p->cus[p->ncus].inds[cnt_in].size= dsin[cnt].size;
@@ -243,7 +253,7 @@ uint32_t chaos_crest_add_cu(chaos_crest_handle_t h,const char*name,chaos_ds_t* d
             p->cus[p->ncus].outds[cnt_out].format=strdup(stringa);
 	    p->cus[p->ncus].outds[cnt_out].size= (strlen(stringa)+1+dsin[cnt].size+MAXDIGITS) ;
 	    DPRINT("allocating %d bytes\n",p->cus[p->ncus].outds[cnt_out].size);
-            p->cus[p->ncus].outds[cnt_out].data= malloc(p->cus[p->ncus].outds[cnt_out].size);
+            p->cus[p->ncus].outds[cnt_out].data= calloc(1,p->cus[p->ncus].outds[cnt_out].size);
             if((p->cus[p->ncus].outds[cnt_out].data==NULL) || (p->cus[p->ncus].outds[cnt_out].format==NULL) ){
                 printf("## cannot allocate memory for attribute data\n");
                 return -6;
@@ -313,13 +323,39 @@ int chaos_crest_close(chaos_crest_handle_t h){
     cu_t* cus= p->cus;
     close(p->sock_fd);
     for(cnt=0;cnt<p->ncus;cnt++){
-        int cntt;
-        if(cus[cnt].name){
-	  free((void*)cus[cnt].name);
-            cus[cnt].name=0;
+      int cntt;
+      if(cus[cnt].name){
+	free((void*)cus[cnt].name);
+	cus[cnt].name=0;
+      }
+      free((void*)cus[cnt].inds);
+
+      free((void*)cus[cnt].outds);
+      cus[cnt].inds=0;
+      cus[cnt].outds=0;
+      free(cus);
+      p->cus=0;
+      free(h);
+#if 0
+	for(cntt=0;cnt<cus[cnt].nout;cntt++){
+	  /*            if(cus[cnt].outds[cntt].name){
+                free((void*)cus[cnt].outds[cntt].name);
+                cus[cnt].outds[cntt].name=0;
+		}
+            if(cus[cnt].outds[cntt].desc){
+                free((void*)cus[cnt].outds[cntt].desc);
+                cus[cnt].outds[cntt].desc=0;
+		}
+	  */
+            if(cus[cnt].outds[cntt].data){
+                free((void*)cus[cnt].outds[cntt].data);
+                cus[cnt].outds[cntt].data=0;
+            }
         }
+
         for(cntt=0;cnt<cus[cnt].nin;cntt++){
             if(cus[cnt].inds[cntt].name){
+	      //	      printf("name:%s 0x%x\n",cus[cnt].inds[cntt].name,cus[cnt].inds[cntt].name);
                 free((void*)cus[cnt].inds[cntt].name);
                 cus[cnt].inds[cntt].name=0;
             }
@@ -328,22 +364,9 @@ int chaos_crest_close(chaos_crest_handle_t h){
                 cus[cnt].inds[cntt].desc=0;
             }
         }
-        for(cntt=0;cnt<cus[cnt].nout;cntt++){
-            if(cus[cnt].outds[cntt].name){
-                free((void*)cus[cnt].outds[cntt].name);
-                cus[cnt].outds[cntt].name=0;
-            }
-            if(cus[cnt].outds[cntt].desc){
-                free((void*)cus[cnt].outds[cntt].desc);
-                cus[cnt].outds[cntt].desc=0;
-            }
-            if(cus[cnt].outds[cntt].data){
-                free((void*)cus[cnt].outds[cntt].data);
-                cus[cnt].outds[cntt].data=0;
-            }
-        }
+#endif    
     }
-    
+
     return 0;
 }
 
@@ -397,7 +420,7 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
 	DPRINT("server returned:'%s'\n",buffer_rx);
 	return 0;
     }
-    DPRINT("post failed to:\"%s\" ret:%d,server answer:'%s'\n",url,ret,buffer_rx);
+    printf("post failed to:\"%s\" ret:%d,server answer:'%s'\n",url,ret,buffer_rx);
     return -9; // registration failure
 }
 
@@ -429,7 +452,7 @@ static int push_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){
     
     snprintf(url,sizeof(url),"/api/v1/producer/insert/%s",cu->name);
     
-    if(http_post(h,url,buffer,strlen(buffer),buffer_rx,sizeof(buffer_rx))==0){
+    if(http_post(h,url,buffer,strlen(buffer),0,0/*buffer_rx,sizeof(buffer_rx)*/)==0){
         p->tot_push_time+= (getEpoch() -ts); 
         p->npush++;
         return 0;
