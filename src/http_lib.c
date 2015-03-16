@@ -29,6 +29,7 @@ typedef struct _http {
    unsigned long recvb;
 } _http_handle_t;
 
+#define HTTP_LIB_DEBUG
 #ifdef HTTP_LIB_DEBUG
 #define DPRINT(x,ARGS...) printf(x, ##ARGS)
 #else

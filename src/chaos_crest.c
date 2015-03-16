@@ -528,7 +528,7 @@ int chaos_crest_cu_cmd(chaos_crest_handle_t h,const char*cuname,const char*cmd,c
   } else {
     sprintf(command,"CU?dev=%s&cmd=%s",cuname,cmd);
   }
-  ret = http_request(p->http,"GET",p->wan_url, "chaos_crest_cu_cmd",command, "application/json",0, 0, 0);
+  ret = http_request(p->http,"GET",p->wan_url, "chaos_crest_cu_cmd",command, "application/text","", 0, 0);
   if(ret==200)
     return 0;
   
@@ -542,7 +542,7 @@ uint64_t chaos_crest_cu_get(chaos_crest_handle_t h,const char*cuname,char*output
   if(output==0 || cuname==0)
     return -1;
   sprintf(cmd,"CU?dev=%s&cmd=status",cuname);
-  ret = http_request(p->http,"GET",p->wan_url, "chaos_crest_cu_get",cmd, "application/json",0, output, maxsize);
+  ret = http_request(p->http,"GET",p->wan_url, "chaos_crest_cu_get",cmd, "application/text","", output, maxsize);
   if(ret==200)
     return 0;
   

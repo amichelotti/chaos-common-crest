@@ -6,7 +6,17 @@
  */
 #ifndef _CHAOS_CREST_H_
 #define _CHAOS_CREST_H_
+
+#ifdef LABVIEW
+typedef unsigned long long uint64_t;
+typedef unsigned long uint32_t;
+typedef int int32_t;
+
+#else
 #include <stdint.h>
+#endif 
+
+
 typedef void* chaos_crest_handle_t;
 
 typedef struct _chaos_ds{
@@ -27,6 +37,7 @@ typedef struct _chaos_ds{
 #define DIR_INPUT 0
 #define DIR_OUTPUT 1
 #define DIR_IO 2
+
 
 #define DEFINE_CU_DATASET(_x) \
 static chaos_ds_t dataset_ ## _x[]={
