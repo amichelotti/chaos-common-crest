@@ -151,10 +151,12 @@ int main(int argc, char** argv) {
     scaler=ADD_CU(handle,scaler);
 
     printf("* connecting to %s...\n",url);
-    if((ret=chaos_crest_connect(handle))!=0){
-      printf("## cannot connect to %s, error:%d\n",url,ret);
-        exit(1);
-    }
+    /*    
+	  if((ret=chaos_crest_connect(handle))!=0){
+	  printf("## cannot connect to %s, error:%d\n",url,ret);
+	  exit(1);
+	  }
+    */
     printf("* registering to %s...\n",url);
     // 0 means all defined CU
     if((ret=chaos_crest_register(handle,0))!=0){

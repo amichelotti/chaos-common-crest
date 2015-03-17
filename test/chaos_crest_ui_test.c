@@ -55,7 +55,7 @@ int main(int argc, char** argv) {
 	continue;
       }
     }
-    chaos_crest_connect(handle);
+
     printf("* opening %s CU:%s\n",url,cuname);
     if(channame){
       printf("* getting %s/%s\n",cuname,channame);

@@ -180,6 +180,11 @@ chaos_crest_handle_t chaos_crest_open(const char* chaoswan_url) {
     }
     h->min_push=0xfffffff;
     h->max_push=0;
+    if(chaos_crest_connect(h)!=0){
+      printf("## cannot connect\n");
+      chaos_crest_close(h);
+      return 0;
+    }
     DPRINT("* open socket %d \"%s\"->\"%s\":\"%d\"\n",h->sock_fd,h->hostname,hostname,port);
     
     return h;
