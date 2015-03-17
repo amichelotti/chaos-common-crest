@@ -37,9 +37,10 @@ int main(int argc, char** argv) {
         exit(1);
     }
     cuname = argv[2];
+    chaos_crest_connect(handle);
     printf("* opening %s CU:%s\n",url,cuname);
     tm =chaos_crest_cu_get(handle,cuname,buffer,sizeof(buffer));
-    sleep(10);
+
     if(tm>0){
       printf("%s returned at %llu:%s",cuname,tm,buffer);
       

@@ -113,9 +113,11 @@ int chaos_crest_push(chaos_crest_handle_t h,uint32_t cu_uid);
 /**
  * return the average push time in ms
  * @param h api handle
+ * @param max_time if different from zero return the max time
+ * @param min_time if different from zero return the min time
  * @return the average push time in ms, 0 if NA
  */
-float chaos_crest_push_time(chaos_crest_handle_t h);
+float chaos_crest_push_time(chaos_crest_handle_t h,uint32_t*max_time,uint32_t*min_time);
 
 
 /**

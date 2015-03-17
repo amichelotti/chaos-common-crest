@@ -29,7 +29,7 @@ typedef struct _http {
    unsigned long recvb;
 } _http_handle_t;
 
-#define HTTP_LIB_DEBUG
+
 #ifdef HTTP_LIB_DEBUG
 #define DPRINT(x,ARGS...) printf(x, ##ARGS)
 #else
@@ -42,7 +42,7 @@ static void* receive(void*pp){
     _http_handle_t* p=(_http_handle_t*)pp;
     while(p->exit==0){
         p->retcode=getResponse(pp,p->answer,MAXBUFFER);
-	DPRINT("receive %d %d\n",p->sendid,p->recvid);
+	DPRINT("received %d %d, retcode %d,%s\n",p->sendid,p->recvid,p->retcode,p->answer);
         pthread_cond_signal(&p->cond);
     }
 }
@@ -74,8 +74,8 @@ void http_client_deinit(http_handle_t h){
 
 int http_get_answer(http_handle_t h, char* message, int size){
     _http_handle_t* p=(_http_handle_t*)h;
-    DPRINT("get answer\n");
     pthread_mutex_lock(&p->mutex);
+    DPRINT("get answer (%d) retcode:%d\n",strlen(p->answer),p->retcode);
     memcpy(message,p->answer,size<strlen(p->answer)?size:strlen(p->answer) +1);
     pthread_mutex_unlock(&p->mutex);
     return p->retcode;
@@ -159,15 +159,17 @@ static int getResponseHeader(http_handle_t h, int retryn, int*size_body,int*enco
 		stringa[cnt++] = buf;
 	      }
 	      if (*stringa== 0) {
-		DPRINT("Header Ends %d bytes received\n",cntb);
+		DPRINT("Header Ends %d bytes received, retcode %d\n",cntb,retcode);
 		return retcode;
 	      }
             }
             if (term) {
-                cnt = 0;
+              int minor;  
+	      cnt = 0;
+		
 		//                DPRINT("-->%s",stringa);
-                if (sscanf(stringa, "HTTP/1.1 %d", &retcode) == 1) {
-                    DPRINT("got ret code %d\n", retcode);
+	      if (sscanf(stringa, "HTTP/1.%d %d", &minor,&retcode) == 2) {
+		DPRINT("got ret code %d, minor %d\n", retcode,minor);
                 } else if (sscanf(stringa, "Content-Length:%d", &response_size) == 1) {
                     //  printf("get: got length %d\n",response_size);
                     DPRINT("got length %d\n", response_size);
@@ -204,7 +206,7 @@ int getResponse(http_handle_t h, char*buffer, int max_size) {
   int retry = HTTP_POST_FILE_RETRY;
     char buf;
     char encoding_buf[256];
-#ifdef DEBUG
+#ifdef HTTP_LIB_DEBUG
     char debug_buffer[4096];
 #endif
     int encoding;
@@ -212,10 +214,12 @@ int getResponse(http_handle_t h, char*buffer, int max_size) {
     int term;
     int fetch_term=0;
     int fetch_blank_line=0;
-    *buffer = 0;
+    
     if ((retcode = getResponseHeader(h, HTTP_POST_FILE_RETRY, &response_size,&encoding)) > 0) {
       if(response_size==0){
 	DPRINT("Length unspecified\n");
+      } else{
+	DPRINT("Length :%d\n",response_size);
       }
       if(encoding==1){
 	copy_buffer=0;
@@ -223,6 +227,7 @@ int getResponse(http_handle_t h, char*buffer, int max_size) {
 	copy_buffer = response_size;
       }
       pthread_mutex_lock(&p->mutex);
+      *buffer = 0;
       p->recvid++;
       while (((ret = read(sock, &buf, 1)) >= 0) && (retry > 0)) {
 	p->recvb+=ret;
@@ -234,7 +239,8 @@ int getResponse(http_handle_t h, char*buffer, int max_size) {
 	} else if (ret > 0) {
 	  term=((buf=='\n') && (last_char=='\r'));
 	  last_char=buf;
-#ifdef DEBUG
+#ifdef HTTP_LIB_DEBUG
+
 	  if(term){
 	    debug_buffer[cntb-1]=0;
 	    DPRINT("debug(%d)=>\"%s\"\n",strlen(debug_buffer),debug_buffer);
@@ -260,7 +266,13 @@ int getResponse(http_handle_t h, char*buffer, int max_size) {
 	      buffer[cnt]=0;
 	    }
 	    copy_buffer--;
-	    fetch_term=1;
+
+	    if(cnt == response_size){
+	      DPRINT("done received %d.",cnt);
+	      break;
+	    } else{
+	      fetch_term=1;
+	    }
 	  } else {
 	    if(encoding==1){
 	      if(term){
@@ -341,21 +353,28 @@ int http_perform_request(http_handle_t h,const char*method,char* hostname, const
   ADD_HEADER_STR(pnt,sizeof(buffer), "Accept: */*\r\n");
   ADD_HEADER_STR(pnt,sizeof(buffer), "User-Agent: %s\r\n",agent);
   ADD_HEADER_STR(pnt,sizeof(buffer), "Connection: Keep-Alive\r\n");
-  ADD_HEADER_STR(pnt,sizeof(buffer), "Content-Length: %d\r\n", (int) strlen(parameters));
-  ADD_HEADER_STR(pnt,sizeof(buffer), "Accept-Language: en-us\r\n");
-  ADD_HEADER_STR(pnt,sizeof(buffer), "Accept-Encoding: gzip, deflate\r\n");
   ADD_HEADER_STR(pnt,sizeof(buffer), "Host:%s\r\n", hostname);
-  ADD_HEADER_STR(pnt,sizeof(buffer), "Content-Type: %s\r\n",content);
-  ADD_HEADER_STR(pnt,sizeof(buffer), "\r\n%s\r\n", parameters);
 
+  if((parameters!=0) && (*parameters!=0)) {
+    ADD_HEADER_STR(pnt,sizeof(buffer), "Accept-Language: en-us\r\n");
+    ADD_HEADER_STR(pnt,sizeof(buffer), "Accept-Encoding: gzip, deflate\r\n");
+
+    ADD_HEADER_STR(pnt,sizeof(buffer), "Content-Type: %s\r\n",content);
+    ADD_HEADER_STR(pnt,sizeof(buffer), "Content-Length: %d\r\n", (int) strlen(parameters));
+    ADD_HEADER_STR(pnt,sizeof(buffer), "\r\n%s\r\n", parameters);
+  } else {
+    ADD_HEADER_STR(pnt,sizeof(buffer), "\r\n");
+  }
+  DPRINT("buffer :%s\n",buffer);
   if((ret=write(p->sock,buffer,strlen(buffer)))!=strlen(buffer)){
-      DPRINT("#error sending, ret =%d\n",ret);
-      return -4;
+    DPRINT("#error sending:\"%s\", ret =%d\n",buffer,ret);
+
+    return -4;
     } else {
-      DPRINT("sent header and body :\n%s\n",buffer);
-      p->sentb+=ret;
-      p->sendid++;
-    }
+    DPRINT("sent header and body :\n%s\n",buffer);
+    p->sentb+=ret;
+    p->sendid++;
+  }
 
   return ret;
 }

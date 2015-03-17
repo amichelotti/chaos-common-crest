@@ -61,7 +61,10 @@ typedef struct _chaos_crest_handle{
     uint64_t tot_push_time;
     uint32_t npush;
     uint32_t nreg;
+  uint32_t min_push;
+  uint32_t max_push;
 } _chaos_crest_handle_t;
+
 
 static int http_post(chaos_crest_handle_t h,char*api,char*trx_buffer,int tsizeb,char*rx_buffer,int rsizeb){
   _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
@@ -175,6 +178,8 @@ chaos_crest_handle_t chaos_crest_open(const char* chaoswan_url) {
 
         return 0;
     }
+    h->min_push=0xfffffff;
+    h->max_push=0;
     DPRINT("* open socket %d \"%s\"->\"%s\":\"%d\"\n",h->sock_fd,h->hostname,hostname,port);
     
     return h;
@@ -226,7 +231,7 @@ uint32_t chaos_crest_add_cu(chaos_crest_handle_t h,const char*name,chaos_ds_t* d
   
     if(ndsout>0){
       p->cus[p->ncus].outds=(ds_t*)calloc(ndsout,sizeof(ds_t));
-        p->cus[p->ncus].nout=ndsout;
+      p->cus[p->ncus].nout=ndsout;
 
     }    
     for(cnt=0;cnt<dsitems;cnt++){
@@ -322,51 +327,55 @@ int chaos_crest_close(chaos_crest_handle_t h){
     http_client_deinit(p->http);
     cu_t* cus= p->cus;
     close(p->sock_fd);
+
     for(cnt=0;cnt<p->ncus;cnt++){
       int cntt;
       if(cus[cnt].name){
 	free((void*)cus[cnt].name);
 	cus[cnt].name=0;
       }
-      free((void*)cus[cnt].inds);
+     
 
+      for(cntt=0;cntt<cus[cnt].nout;cntt++){
+	if(cus[cnt].outds[cntt].name){
+	  free((void*)cus[cnt].outds[cntt].name);
+	  cus[cnt].outds[cntt].name=0;
+	}
+	if(cus[cnt].outds[cntt].desc){
+	  free((void*)cus[cnt].outds[cntt].desc);
+	  cus[cnt].outds[cntt].desc=0;
+	}
+	if(cus[cnt].outds[cntt].format){
+	  free((void*)cus[cnt].outds[cntt].format);
+	  cus[cnt].outds[cntt].format=0;
+	}
+	  
+	if(cus[cnt].outds[cntt].data){
+	  free((void*)cus[cnt].outds[cntt].data);
+	  cus[cnt].outds[cntt].data=0;
+	}
+      }
+
+      for(cntt=0;cntt<cus[cnt].nin;cntt++){
+	if(cus[cnt].inds[cntt].name){
+	  free((void*)cus[cnt].inds[cntt].name);
+	  cus[cnt].inds[cntt].name=0;
+	}
+	if(cus[cnt].inds[cntt].desc){
+	  free((void*)cus[cnt].inds[cntt].desc);
+	  cus[cnt].inds[cntt].desc=0;
+	}
+      }
+      free((void*)cus[cnt].inds);
       free((void*)cus[cnt].outds);
       cus[cnt].inds=0;
       cus[cnt].outds=0;
-      free(cus);
-      p->cus=0;
-      free(h);
-#if 0
-	for(cntt=0;cnt<cus[cnt].nout;cntt++){
-	  /*            if(cus[cnt].outds[cntt].name){
-                free((void*)cus[cnt].outds[cntt].name);
-                cus[cnt].outds[cntt].name=0;
-		}
-            if(cus[cnt].outds[cntt].desc){
-                free((void*)cus[cnt].outds[cntt].desc);
-                cus[cnt].outds[cntt].desc=0;
-		}
-	  */
-            if(cus[cnt].outds[cntt].data){
-                free((void*)cus[cnt].outds[cntt].data);
-                cus[cnt].outds[cntt].data=0;
-            }
-        }
-
-        for(cntt=0;cnt<cus[cnt].nin;cntt++){
-            if(cus[cnt].inds[cntt].name){
-	      //	      printf("name:%s 0x%x\n",cus[cnt].inds[cntt].name,cus[cnt].inds[cntt].name);
-                free((void*)cus[cnt].inds[cntt].name);
-                cus[cnt].inds[cntt].name=0;
-            }
-            if(cus[cnt].inds[cntt].desc){
-                free((void*)cus[cnt].inds[cntt].desc);
-                cus[cnt].inds[cntt].desc=0;
-            }
-        }
-#endif    
     }
-
+    free(p->cus);
+    p->cus=0;
+    free(p->hostname);
+    free(p->wan_url);
+    free(h);
     return 0;
 }
 
@@ -453,8 +462,11 @@ static int push_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){
     snprintf(url,sizeof(url),"/api/v1/producer/insert/%s",cu->name);
     
     if(http_post(h,url,buffer,strlen(buffer),0,0/*buffer_rx,sizeof(buffer_rx)*/)==0){
-        p->tot_push_time+= (getEpoch() -ts); 
-        p->npush++;
+      uint32_t t=(getEpoch() -ts); 
+      p->tot_push_time+= t;
+      p->max_push=(t>p->max_push)?t:p->max_push;
+      p->min_push=(t<p->min_push)&& (t>0)?t:p->min_push;
+      p->npush++;
         return 0;
     }
     
@@ -497,8 +509,15 @@ int chaos_crest_push(chaos_crest_handle_t h,uint32_t cu_uid){
 }
 
 
-float chaos_crest_push_time(chaos_crest_handle_t h){
+float chaos_crest_push_time(chaos_crest_handle_t h,uint32_t*max,uint32_t *min){
     _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
+    if(max){
+      *max = p->max_push;
+    }
+    if(min){
+      *min = p->min_push;
+    }
+
     if(p->npush>0){
         return 1.0*(float)p->tot_push_time/p->npush;
     }
@@ -524,9 +543,9 @@ int chaos_crest_cu_cmd(chaos_crest_handle_t h,const char*cuname,const char*cmd,c
     return -1;
 
   if(args){
-    sprintf(command,"CU?dev=%s&cmd=%s&parm=%s",cuname,cmd,args);
+    sprintf(command,"/CU?dev=%s&cmd=%s&parm=%s",cuname,cmd,args);
   } else {
-    sprintf(command,"CU?dev=%s&cmd=%s",cuname,cmd);
+    sprintf(command,"/CU?dev=%s&cmd=%s",cuname,cmd);
   }
   ret = http_request(p->http,"GET",p->wan_url, "chaos_crest_cu_cmd",command, "application/text","", 0, 0);
   if(ret==200)
@@ -536,17 +555,34 @@ int chaos_crest_cu_cmd(chaos_crest_handle_t h,const char*cuname,const char*cmd,c
 }
 
 uint64_t chaos_crest_cu_get(chaos_crest_handle_t h,const char*cuname,char*output,int maxsize){
+  uint64_t rett=0;
+  
   char cmd[256];
   _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
   int ret;
   if(output==0 || cuname==0)
     return -1;
-  sprintf(cmd,"CU?dev=%s&cmd=status",cuname);
-  ret = http_request(p->http,"GET",p->wan_url, "chaos_crest_cu_get",cmd, "application/text","", output, maxsize);
-  if(ret==200)
-    return 0;
+  sprintf(cmd,"/CU?dev=%s&cmd=status",cuname);
   
-  return ret;
+  ret = http_request(p->http,"GET",p->wan_url, "chaos_crest_cu_get",cmd, "html/text",0, output, maxsize);
+  if(ret<0){
+    printf("## error getting cu %s\n",cuname);
+  }
+
+  
+  
+  if(ret==200){
+    char *pnt=strstr(output,"\"dpck_ts\" : { \"$numberLong\" : \"");
+    if(pnt){
+      rett=atoll(pnt);
+      printf("DECODIFIED %s %llu\n",pnt,rett);
+      return rett;
+      
+    }
+    return -1;
+  }
+  
+  return 0;
 }
 
 uint64_t chaos_crest_cu_get_channel(chaos_crest_handle_t h,const char*cuname,const char*channame,char*output,int maxsize){
