@@ -135,20 +135,20 @@ int main(int argc, char** argv) {
         iterations=atoi(argv[2]);
     }
     
-    cu0=ADD_CU(handle,test_cu);
+    cu0=ADD_CU(handle,"TEST/TEST_CU",test_cu);
     if(cu0==0){
         printf("## failed adding cu \"test_cu\"\n");
         exit(1);
     }
-    cu1=ADD_CU(handle,test_cu2);
+    cu1=ADD_CU(handle,"TEST/TEST_CU2",test_cu2);
     if(cu1==0){
         printf("## failed adding cu \"test_cu2\"\n");
         exit(1);
     }
     
-    qdc0=ADD_CU(handle,qdc0);
-    qdc1=ADD_CU(handle,qdc1);
-    scaler=ADD_CU(handle,scaler);
+    qdc0=ADD_CU(handle,"BTF_SIM/QDC0",qdc0);
+    qdc1=ADD_CU(handle,"BTF_SIM/QDC1",qdc1);
+    scaler=ADD_CU(handle,"BTF_SIM/SCALER",scaler);
 
     printf("* connecting to %s...\n",url);
     /*    
