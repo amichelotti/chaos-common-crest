@@ -48,8 +48,8 @@ static chaos_ds_t dataset_ ## _x[]={
 #define END_CU_DATASET }
 
 
-#define ADD_CU(handle,name) \
-chaos_crest_add_cu(handle,#name,dataset_ ##name,sizeof(dataset_ ##name)/sizeof(chaos_ds_t));
+#define ADD_CU(handle,alias,name)					\
+chaos_crest_add_cu(handle,alias,dataset_ ##name,sizeof(dataset_ ##name)/sizeof(chaos_ds_t));
 
 /**
  * Initialize the API context
