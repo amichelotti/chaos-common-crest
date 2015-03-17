@@ -12,7 +12,7 @@
  * 
  */
 #define USAGE   \
-printf("%s <ui url> <CUNAME>\n",argv[0]);\
+printf("%s <ui url> <CUNAME> [-d channel] [-c <command>  <args>]\n",argv[0]);\
 exit(1)
 
         
@@ -25,6 +25,9 @@ int main(int argc, char** argv) {
     // data variables
     int cnt;
     char *cuname;
+    char*channame=0;
+    char*command=0;
+    char*cmd_args=0;
     char buffer[4096];
     if(argc<3){
         USAGE;
@@ -37,12 +40,37 @@ int main(int argc, char** argv) {
         exit(1);
     }
     cuname = argv[2];
+    
+    if(argc==4){
+      channame=argv[3];
+    }
+    for(cnt=0;cnt<argc;cnt++){
+      if(!strcmp("-d",argv[cnt])){
+	channame = argv[cnt+1];
+	continue;
+      }
+      if(!strcmp("-c",argv[cnt])){
+	command = argv[cnt+1];
+	cmd_args = argv[cnt+2];
+	continue;
+      }
+    }
     chaos_crest_connect(handle);
     printf("* opening %s CU:%s\n",url,cuname);
-    tm =chaos_crest_cu_get(handle,cuname,buffer,sizeof(buffer));
+    if(channame){
+      printf("* getting %s/%s\n",cuname,channame);
+      tm =chaos_crest_cu_get_channel(handle,cuname,channame,buffer,sizeof(buffer));
+    } else {
+      tm =chaos_crest_cu_get(handle,cuname,buffer,sizeof(buffer));
+    }
 
+    if(command){
+      if(chaos_crest_cu_cmd(handle,cuname,command,cmd_args)==0){
+	printf("* command ok");
+      }
+    }
     if(tm>0){
-      printf("%s returned at %llu:%s",cuname,tm,buffer);
+      printf("%s returned at %llu:\n\"%s\"\n",cuname,tm,buffer);
       
     } else {
       printf("## error getting %s\n",cuname);

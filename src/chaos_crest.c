@@ -554,6 +554,58 @@ int chaos_crest_cu_cmd(chaos_crest_handle_t h,const char*cuname,const char*cmd,c
   return ret;
 }
 
+static char* getBsonValue_r(char*input,char*key,char *buffer,int maxsize){
+  int cnt=0;
+  char match[256];
+  char*pnt;
+  snprintf(match,sizeof(match),"\"%s\" :",key);
+  pnt=strstr(input,match);
+  if(pnt==0){
+    snprintf(match,sizeof(match),"%s:",key);
+    pnt=strstr(input,match);
+  }
+  
+  if(pnt){
+    int brace=0;
+    
+    pnt +=strlen(match);
+    while((*pnt!=0) && (*pnt!=',') && cnt<maxsize){
+      if(*pnt==' ' || *pnt=='\"'){
+	pnt++;
+	continue;
+      }
+
+      
+      if(*pnt=='{'){
+	brace++;
+	if(brace==1){
+	  //remove the first open brace
+	  pnt++;
+	  continue;
+	}
+      }
+
+      if(*pnt=='}'){
+	if(brace==1){
+	  //last close brace end 
+	  buffer[cnt]=0;
+	  break;
+	}
+	brace--;
+      }
+
+      buffer[cnt++] = *pnt;
+      pnt++;
+    }
+  }
+  buffer[cnt]=0;
+  return buffer;
+}
+
+static char* getBsonValue(char*input,char*key){
+  static char buffer[1024];
+  return getBsonValue_r(input,key,buffer,sizeof(buffer));
+}
 uint64_t chaos_crest_cu_get(chaos_crest_handle_t h,const char*cuname,char*output,int maxsize){
   uint64_t rett=0;
   
@@ -571,17 +623,13 @@ uint64_t chaos_crest_cu_get(chaos_crest_handle_t h,const char*cuname,char*output
 
   
   
-  if(ret==200){
-    char *pnt=strstr(output,"\"dpck_ts\" : { \"$numberLong\" : \"");
-    if(pnt){
-      rett=atoll(pnt);
-      printf("DECODIFIED %s %llu\n",pnt,rett);
-      return rett;
-      
-    }
-    return -1;
+  if(ret==200){ 
+    char*tmp=getBsonValue(output,"dpck_ts");
+
+    tmp=getBsonValue(tmp,"$numberLong");
+    if(*tmp!=0) return atoll(tmp);
   }
-  
+   
   return 0;
 }
 
@@ -590,19 +638,15 @@ uint64_t chaos_crest_cu_get_channel(chaos_crest_handle_t h,const char*cuname,con
   uint64_t ret;
   ret=  chaos_crest_cu_get(h,cuname,buf,sizeof(buf));
   if(ret>0){
+    
     char search[256];
-    char *pnt,*pntt;
-    sprintf(search,"\"%s\":\"",channame);
-    pnt=strstr(buf,search);
-    if(pnt){
-      pnt+=strlen(search);
-      pntt=strchr(pnt,'\"');
-      if(pntt)*pntt=0;
-      strncpy(output,pnt,maxsize);
+    char *pnt=getBsonValue_r(buf,channame,output,maxsize);
+    if(*pnt!=0){
       return ret;
     }
   }
-  return ret;
+
+  return 0;
 }
 
 
