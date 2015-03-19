@@ -121,7 +121,9 @@ static unsigned long long getEpoch(){
     struct timeval mytime;
     uint64_t ret;
     gettimeofday(&mytime,NULL);
-    ret = mytime.tv_sec*1000 + mytime.tv_usec/1000;
+    ret = mytime.tv_sec;
+    ret = ret *1000 + mytime.tv_usec/1000;
+    
     return ret;
 }
 chaos_crest_handle_t chaos_crest_open(const char* chaoswan_url) {
