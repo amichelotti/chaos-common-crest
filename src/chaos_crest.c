@@ -606,6 +606,19 @@ static char* getBsonValue_r(char*input,char*key,char *buffer,int maxsize){
   buffer[cnt]=0;
   return buffer;
 }
+//remove spaces and "
+static void clean_bson(char *buf){
+  char *dst=buf;
+  char *src=buf;
+  while(*src!=0){
+    if(*src=='\"'){
+      src++;
+      continue;
+    }
+    *dst++=*src++;
+  }
+  *dst=0;
+}
 
 static char* getBsonValue(char*input,char*key){
   static char buffer[1024];
@@ -618,7 +631,7 @@ uint64_t chaos_crest_cu_get(chaos_crest_handle_t h,const char*cuname,char*output
   _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
   int ret;
   if(output==0 || cuname==0)
-    return -1;
+    return 0;
   sprintf(cmd,"/CU?dev=%s&cmd=status",cuname);
   
   ret = http_request(p->http,"GET",p->wan_url, "chaos_crest_cu_get",cmd, "html/text",0, output, maxsize);
@@ -626,14 +639,63 @@ uint64_t chaos_crest_cu_get(chaos_crest_handle_t h,const char*cuname,char*output
     printf("## error getting cu %s\n",cuname);
   }
 
-  
-  
   if(ret==200){ 
     char*tmp=getBsonValue(output,"dpck_ts");
 
     tmp=getBsonValue(tmp,"$numberLong");
     if(*tmp!=0) return atoll(tmp);
   }
+   
+  return 0;
+}
+uint64_t chaos_crest_cu_get_key_value(chaos_crest_handle_t h,const char*cuname,char*keys,char*values,int maxsize){
+  uint64_t rett=0;
+  char cmd[256];
+  _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
+  int ret;
+  char tmpbuffer[maxsize*2];
+  
+  if(keys==0 || cuname==0 || values==0)
+    return 0;
+  rett= chaos_crest_cu_get(h,cuname,tmpbuffer,sizeof(tmpbuffer));
+
+  if(rett>0){
+    clean_bson(tmpbuffer);
+    char *pnt=strtok(tmpbuffer,",");
+    *keys = 0;
+    *values=0;
+    while(pnt!=0){		
+      char key[256];
+      char val[256];
+      char type[256];
+      int found=0;
+
+      if(sscanf(pnt,"%s : { %s : %s }",key,type,val)==3){
+	found =1;
+
+      } else if(sscanf(pnt,"%s : %s",key,val)==2){
+	found =1;
+
+      }
+      
+      if(found){
+	if(*keys==0){
+	  sprintf(keys,"%s",key);
+	} else{
+	  sprintf(keys,"%s,%s",keys,key);
+	}
+	if(*values==0){
+	  sprintf(values,"%s",val);
+	} else{
+	  sprintf(values,"%s,%s",values,val);
+	}
+	
+      }
+      pnt=strtok(NULL,",");
+    }
+    return rett;
+  }
+  
    
   return 0;
 }
