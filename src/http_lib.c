@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/socket.h>
 #include <pthread.h>
 #include <assert.h>
 #define MAXBUFFER 8192
@@ -366,7 +367,7 @@ int http_perform_request(http_handle_t h,const char*method,char* hostname, const
     ADD_HEADER_STR(pnt,sizeof(buffer), "\r\n");
   }
   DPRINT("buffer :%s\n",buffer);
-  if((ret=write(p->sock,buffer,strlen(buffer)))!=strlen(buffer)){
+  if((ret=send(p->sock,buffer,strlen(buffer),MSG_NOSIGNAL))!=strlen(buffer)){
     DPRINT("#error sending:\"%s\", ret =%d\n",buffer,ret);
 
     return -4;
