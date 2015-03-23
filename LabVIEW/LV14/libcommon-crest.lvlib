@@ -8,6 +8,7 @@
 	<Item Name="chaos crest connect.vi" Type="VI" URL="../VIs/chaos crest connect.vi"/>
 	<Item Name="chaos crest cu cmd.vi" Type="VI" URL="../VIs/chaos crest cu cmd.vi"/>
 	<Item Name="chaos crest cu get channel.vi" Type="VI" URL="../VIs/chaos crest cu get channel.vi"/>
+	<Item Name="chaos crest cu get key value.vi" Type="VI" URL="../VIs/chaos crest cu get key value.vi"/>
 	<Item Name="chaos crest cu get.vi" Type="VI" URL="../VIs/chaos crest cu get.vi"/>
 	<Item Name="chaos crest open.vi" Type="VI" URL="../VIs/chaos crest open.vi"/>
 	<Item Name="chaos crest push time.vi" Type="VI" URL="../VIs/chaos crest push time.vi"/>

@@ -29,6 +29,7 @@ int main(int argc, char** argv) {
     char*command=0;
     char*cmd_args=0;
     char buffer[4096];
+    char values[4096];
     if(argc<3){
         USAGE;
     }
@@ -61,7 +62,7 @@ int main(int argc, char** argv) {
       printf("* getting %s/%s\n",cuname,channame);
       tm =chaos_crest_cu_get_channel(handle,cuname,channame,buffer,sizeof(buffer));
     } else {
-      tm =chaos_crest_cu_get(handle,cuname,buffer,sizeof(buffer));
+      tm =chaos_crest_cu_get_key_value(handle,cuname,buffer,values,sizeof(buffer));
     }
 
     if(command){
@@ -70,7 +71,7 @@ int main(int argc, char** argv) {
       }
     }
     if(tm>0){
-      printf("%s returned at %llu:\n\"%s\"\n",cuname,tm,buffer);
+      printf("%s returned at %llu:\nkeys:%s\nvalues:%s\n",cuname,tm,buffer,values);
       
     } else {
       printf("## error getting %s\n",cuname);
