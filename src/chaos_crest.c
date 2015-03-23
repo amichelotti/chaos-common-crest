@@ -146,7 +146,8 @@ chaos_crest_handle_t chaos_crest_open(const char* chaoswan_url) {
     port = atoi(sport + 1);
     *sport = 0;
     sock = socket(AF_INET, SOCK_STREAM, 0);
- 
+    signal(SIGPIPE, SIG_IGN);
+
     if (sock < 0) 
         return 0;
     /*    if(setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one))<0){

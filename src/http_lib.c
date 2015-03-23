@@ -367,7 +367,7 @@ int http_perform_request(http_handle_t h,const char*method,char* hostname, const
     ADD_HEADER_STR(pnt,sizeof(buffer), "\r\n");
   }
   DPRINT("buffer :%s\n",buffer);
-  if((ret=send(p->sock,buffer,strlen(buffer),MSG_NOSIGNAL))!=strlen(buffer)){
+  if((ret=write(p->sock,buffer,strlen(buffer)))!=strlen(buffer)){
     DPRINT("#error sending:\"%s\", ret =%d\n",buffer,ret);
 
     return -4;

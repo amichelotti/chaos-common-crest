@@ -6,7 +6,10 @@ ENDIF()
 # CREST_DEBUG
 ADD_DEFINITIONS(-g -O2)
 INCLUDE_DIRECTORIES(src)
-
+IF (CMAKE_HOST_APPLE)
+   ADD_DEFINITIONS(-DOSX)
+   MESSAGE(STATUS "OSX variant")
+ENDIF()
 SET(crest_src src/chaos_crest.c src/http_lib.c )
 SET(crest_test_src test/crest_cu_test.c)
 SET(crest_test_ui_src test/chaos_crest_ui_test.c)
