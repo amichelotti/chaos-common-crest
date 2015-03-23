@@ -142,12 +142,24 @@ int chaos_crest_cu_cmd(chaos_crest_handle_t h,const char*cuname,const char*cmd,c
  * Retrieve the output dataset of a given CU
  * @param h api handle
  * @param cuname name cu name to access
- * @param [out] output buffer where the dataset is written out
+ * @param [out] output buffer where the dataset is written out (json/bson format)
  * @param maxsize max size of the buffer
  * @return timestamp in ms on success, 0 if error
  */
 
 uint64_t chaos_crest_cu_get(chaos_crest_handle_t h,const char*cuname,char*output,int maxsize);
+
+/**
+ * Retrieve the output dataset of a given CU, writing the dataset as a comma separated key and values
+ * @param h api handle
+ * @param cuname name cu name to access
+ * @param [out] keys buffer where the dataset keys are dumped comma separated
+ * @param [out] values buffer where the dataset values are dumped comma separated
+ * @param maxsize max size of the buffers
+ * @return timestamp in ms on success, 0 if error
+ */
+
+uint64_t chaos_crest_cu_get_key_value(chaos_crest_handle_t h,const char*cuname,char*keys,char*values,int maxsize);
 
 /**
  * Retrieve the value of an output channel of a given CU

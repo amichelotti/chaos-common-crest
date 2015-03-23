@@ -121,7 +121,9 @@ static unsigned long long getEpoch(){
     struct timeval mytime;
     uint64_t ret;
     gettimeofday(&mytime,NULL);
-    ret = mytime.tv_sec*1000 + mytime.tv_usec/1000;
+    ret = mytime.tv_sec;
+    ret = ret *1000 + mytime.tv_usec/1000;
+    
     return ret;
 }
 chaos_crest_handle_t chaos_crest_open(const char* chaoswan_url) {
@@ -180,6 +182,11 @@ chaos_crest_handle_t chaos_crest_open(const char* chaoswan_url) {
     }
     h->min_push=0xfffffff;
     h->max_push=0;
+    if(chaos_crest_connect(h)!=0){
+      printf("## cannot connect\n");
+      chaos_crest_close(h);
+      return 0;
+    }
     DPRINT("* open socket %d \"%s\"->\"%s\":\"%d\"\n",h->sock_fd,h->hostname,hostname,port);
     
     return h;
@@ -554,6 +561,71 @@ int chaos_crest_cu_cmd(chaos_crest_handle_t h,const char*cuname,const char*cmd,c
   return ret;
 }
 
+static char* getBsonValue_r(char*input,char*key,char *buffer,int maxsize){
+  int cnt=0;
+  char match[256];
+  char*pnt;
+  snprintf(match,sizeof(match),"\"%s\" :",key);
+  pnt=strstr(input,match);
+  if(pnt==0){
+    snprintf(match,sizeof(match),"%s:",key);
+    pnt=strstr(input,match);
+  }
+  
+  if(pnt){
+    int brace=0;
+    
+    pnt +=strlen(match);
+    while((*pnt!=0) && (*pnt!=',') && cnt<maxsize){
+      if(*pnt==' ' || *pnt=='\"'){
+	pnt++;
+	continue;
+      }
+
+      
+      if(*pnt=='{'){
+	brace++;
+	if(brace==1){
+	  //remove the first open brace
+	  pnt++;
+	  continue;
+	}
+      }
+
+      if(*pnt=='}'){
+	if(brace==1){
+	  //last close brace end 
+	  buffer[cnt]=0;
+	  break;
+	}
+	brace--;
+      }
+
+      buffer[cnt++] = *pnt;
+      pnt++;
+    }
+  }
+  buffer[cnt]=0;
+  return buffer;
+}
+//remove spaces and "
+static void clean_bson(char *buf){
+  char *dst=buf;
+  char *src=buf;
+  while(*src!=0){
+    if(*src=='\"'){
+      src++;
+      continue;
+    }
+    *dst++=*src++;
+  }
+  *dst=0;
+}
+
+static char* getBsonValue(char*input,char*key){
+  static char buffer[1024];
+  return getBsonValue_r(input,key,buffer,sizeof(buffer));
+}
 uint64_t chaos_crest_cu_get(chaos_crest_handle_t h,const char*cuname,char*output,int maxsize){
   uint64_t rett=0;
   
@@ -561,7 +633,7 @@ uint64_t chaos_crest_cu_get(chaos_crest_handle_t h,const char*cuname,char*output
   _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
   int ret;
   if(output==0 || cuname==0)
-    return -1;
+    return 0;
   sprintf(cmd,"/CU?dev=%s&cmd=status",cuname);
   
   ret = http_request(p->http,"GET",p->wan_url, "chaos_crest_cu_get",cmd, "html/text",0, output, maxsize);
@@ -569,19 +641,64 @@ uint64_t chaos_crest_cu_get(chaos_crest_handle_t h,const char*cuname,char*output
     printf("## error getting cu %s\n",cuname);
   }
 
+  if(ret==200){ 
+    char*tmp=getBsonValue(output,"dpck_ts");
+
+    tmp=getBsonValue(tmp,"$numberLong");
+    if(*tmp!=0) return atoll(tmp);
+  }
+   
+  return 0;
+}
+uint64_t chaos_crest_cu_get_key_value(chaos_crest_handle_t h,const char*cuname,char*keys,char*values,int maxsize){
+  uint64_t rett=0;
+  char cmd[256];
+  _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
+  int ret;
+  char tmpbuffer[maxsize*2];
   
-  
-  if(ret==200){
-    char *pnt=strstr(output,"\"dpck_ts\" : { \"$numberLong\" : \"");
-    if(pnt){
-      rett=atoll(pnt);
-      printf("DECODIFIED %s %llu\n",pnt,rett);
-      return rett;
+  if(keys==0 || cuname==0 || values==0)
+    return 0;
+  rett= chaos_crest_cu_get(h,cuname,tmpbuffer,sizeof(tmpbuffer));
+
+  if(rett>0){
+    clean_bson(tmpbuffer);
+    char *pnt=strtok(tmpbuffer,",");
+    *keys = 0;
+    *values=0;
+    while(pnt!=0){		
+      char key[256];
+      char val[256];
+      char type[256];
+      int found=0;
+
+      if(sscanf(pnt,"%s : { %s : %s }",key,type,val)==3){
+	found =1;
+
+      } else if(sscanf(pnt,"%s : %s",key,val)==2){
+	found =1;
+
+      }
       
+      if(found){
+	if(*keys==0){
+	  sprintf(keys,"%s",key);
+	} else{
+	  sprintf(keys,"%s,%s",keys,key);
+	}
+	if(*values==0){
+	  sprintf(values,"%s",val);
+	} else{
+	  sprintf(values,"%s,%s",values,val);
+	}
+	
+      }
+      pnt=strtok(NULL,",");
     }
-    return -1;
+    return rett;
   }
   
+   
   return 0;
 }
 
@@ -590,19 +707,15 @@ uint64_t chaos_crest_cu_get_channel(chaos_crest_handle_t h,const char*cuname,con
   uint64_t ret;
   ret=  chaos_crest_cu_get(h,cuname,buf,sizeof(buf));
   if(ret>0){
+    
     char search[256];
-    char *pnt,*pntt;
-    sprintf(search,"\"%s\":\"",channame);
-    pnt=strstr(buf,search);
-    if(pnt){
-      pnt+=strlen(search);
-      pntt=strchr(pnt,'\"');
-      if(pntt)*pntt=0;
-      strncpy(output,pnt,maxsize);
+    char *pnt=getBsonValue_r(buf,channame,output,maxsize);
+    if(*pnt!=0){
       return ret;
     }
   }
-  return ret;
+
+  return 0;
 }
 
 
