@@ -7,6 +7,8 @@
 
 #include "chaos_crest.h"
 #include <stdlib.h>
+#include <signal.h>
+
 #include <sys/types.h>          
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -710,7 +712,7 @@ uint64_t chaos_crest_cu_get_channel(chaos_crest_handle_t h,const char*cuname,con
   if(ret>0){
     
     char search[256];
-    char *pnt=getBsonValue_r(buf,channame,output,maxsize);
+    char *pnt=getBsonValue_r(buf,(char*)channame,output,maxsize);
     if(*pnt!=0){
       return ret;
     }
