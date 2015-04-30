@@ -201,7 +201,7 @@ int main(int argc, char** argv) {
     }
     {
       float t=chaos_crest_push_time(handle,&max,&min);
-      printf("* %d iteration average %f ms per iteration (max:%u ms, min:%u ms) ...\n",iterations,t,max,min);
+      printf("* %d iteration average %f ms per iteration ...\n",iterations,t);
     }
     chaos_crest_close(handle);
     return (EXIT_SUCCESS);
