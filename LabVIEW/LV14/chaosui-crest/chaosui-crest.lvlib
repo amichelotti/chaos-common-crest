@@ -6,6 +6,7 @@
 	<Item Name="chaos-ui-test.vi" Type="VI" URL="../VIs/chaos-ui-test.vi"/>
 	<Item Name="chaos_crest_get.vi" Type="VI" URL="../VIs/chaos_crest_get.vi"/>
 	<Item Name="chaosui-crest-cu-get.vi" Type="VI" URL="../VIs/chaosui-crest-cu-get.vi"/>
+	<Item Name="chaosui-crest-cu-setstate.vi" Type="VI" URL="../VIs/chaosui-crest-cu-setstate.vi"/>
 	<Item Name="chaosui-crest-open.vi" Type="VI" URL="../VIs/chaosui-crest-open.vi"/>
 	<Item Name="provaJson.vi" Type="VI" URL="../VIs/provaJson.vi"/>
 	<Item Name="Util Convert From Base64 and Store.vi" Type="VI" URL="../VIs/Util Convert From Base64 and Store.vi"/>
