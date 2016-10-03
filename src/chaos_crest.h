@@ -102,6 +102,24 @@ int chaos_crest_update_by_name(chaos_crest_handle_t h,uint32_t cu_uid,char* attr
  * @return 0 on success, error otherwise
  */
 int chaos_crest_register(chaos_crest_handle_t h,uint32_t cu_uid);
+
+/**
+ * registers a cu with the  given uid and a dataset specified by a json string
+ * @param h api handle
+ * @param cu_uid an unique cu uid
+ * @param json_ds the json dataset
+ * @return 0 on success, error otherwise
+ */
+int chaos_crest_json_register(chaos_crest_handle_t h,const char* cu_uid, const char* json_ds);
+/**
+ * push the dataset of the specified cu 
+ * @param h api handle
+ * @param cu_uid an unique cu uid
+ * @param json_ds the json dataset
+ * @return 0 on success, error otherwise
+ */
+int chaos_crest_json_push(chaos_crest_handle_t h,const char* cu_uid, const char* json_ds);
+
 /**
  * push the dataset of the specified CU on the cloud
  * @param h api handle

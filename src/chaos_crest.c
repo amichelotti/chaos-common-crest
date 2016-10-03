@@ -26,6 +26,7 @@
 
 #ifdef CREST_DEBUG
 #define DPRINT(x,ARGS...) printf(x, ##ARGS)
+
 #else
 #define DPRINT(x,...)
 #endif
@@ -83,6 +84,37 @@ static int http_post(chaos_crest_handle_t h,char*api,char*trx_buffer,int tsizeb,
   if(ret==200)
     return 0;
   
+  return ret;
+}
+
+int chaos_crest_json_register(chaos_crest_handle_t h,const char* cu_uid, const char* json_ds){
+  int ret;
+  char url[MAXBUFFER];
+  char buffer_rx[MAXBUFFER];
+  snprintf(url,sizeof(url),"/api/v1/producer/jsonregister/%s",cu_uid);
+  if((ret=http_post(h,url,json_ds,strlen(json_ds),buffer_rx,sizeof(buffer_rx)))==0){
+    
+    DPRINT("server returned:'%s'\n",buffer_rx);
+    return 0;
+  }
+  DPRINT("## json registration failed to:\"%s\" ret:%d,server answer:'%s'\n",url,ret,buffer_rx);
+  return ret;
+}
+
+
+  
+
+int chaos_crest_json_push(chaos_crest_handle_t h,const char* cu_uid, const char* json_ds){
+  int ret;
+  char url[MAXBUFFER];
+  char buffer_rx[MAXBUFFER];
+  snprintf(url,sizeof(url),"/api/v1/producer/jsoninsert/%s",cu_uid);
+  if((ret=http_post(h,url,json_ds,strlen(json_ds),buffer_rx,sizeof(buffer_rx)))==0){
+    
+    DPRINT("server returned:'%s'\n",buffer_rx);
+    return 0;
+  }
+  DPRINT("##json insert failed to:\"%s\" ret:%d,server answer:'%s'\n",url,ret,buffer_rx);
   return ret;
 }
 
