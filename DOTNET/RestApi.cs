@@ -410,6 +410,23 @@ namespace RestCSharpCHAOS
             }
             return String.Empty;
         }
+        public String SendCustomCommand(String device, String commandName, String JSonParams)
+        {
+            String query = this.coords + "/CU?dev=" + device + "&cmd=" + commandName;// +"&parm={\"snapname\":\"" + SnapName + "\"}";
+            if (JSonParams != String.Empty)
+            {
+                query += "&parm=" + JSonParams;
+            }
+            for (UInt32 count = 0; count < this.retry; count++)
+            {
+                String Ans = GetHtmlAnswer(query);
+                if (Ans != String.Empty)
+                    return Ans;
+
+            }
+            return String.Empty;
+
+        }
 
     }
     
