@@ -41,7 +41,16 @@ namespace RestCSharpCHAOS
             System.IO.StreamReader readStream = new System.IO.StreamReader(ReceiveStream, encode);
 
             char[] read = new char[256];
-            int count = readStream.Read(read, 0, 256);
+            int count;
+            try
+            {
+                 count = readStream.Read(read, 0, 256);
+            }
+            catch (System.Net.WebException)
+            {
+                return String.Empty;
+            }
+
             while (count > 0)
             {
                 // Dump the 256 characters on a string and display the string onto the console.
@@ -410,9 +419,11 @@ namespace RestCSharpCHAOS
             }
             return String.Empty;
         }
-        public String SendCustomCommand(String device, String commandName, String JSonParams)
+        public String SendCustomCommand(String device, String commandName, String JSonParams,UInt32 mode=0)
         {
             String query = this.coords + "/CU?dev=" + device + "&cmd=" + commandName;// +"&parm={\"snapname\":\"" + SnapName + "\"}";
+            if (mode != 0)
+                query += "&mode=" + mode.ToString();
             if (JSonParams != String.Empty)
             {
                 query += "&parm=" + JSonParams;
