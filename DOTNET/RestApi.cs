@@ -19,6 +19,7 @@ namespace RestCSharpCHAOS
 
         public static String GetHtmlAnswer(String Question)
         {
+            bool al=RestAPI.SetAllowUnsafeHeaderParsing20();
             System.Net.WebResponse resp;
             String result = String.Empty;
 
@@ -26,14 +27,18 @@ namespace RestCSharpCHAOS
             {
                 System.Net.HttpWebRequest myReq = (System.Net.HttpWebRequest)(System.Net.WebRequest.Create(Question));
                 myReq.Timeout = 3000;
+                
                 myReq.Accept = "\r\n";
+                
                 resp = myReq.GetResponse();
+                //myReq.
 
 
             }
 
-            catch (System.Net.WebException)
+            catch (System.Net.WebException e)
             {
+                
                 return String.Empty;
             }
             System.IO.Stream ReceiveStream = resp.GetResponseStream();
@@ -62,6 +67,7 @@ namespace RestCSharpCHAOS
         }
         public RestAPI(String IP, UInt32 port)
         {
+            
             coords = IP + ":" + port.ToString();
             retry = 5;
 
@@ -69,6 +75,7 @@ namespace RestCSharpCHAOS
         }
         public RestAPI(String completeIP)
         {
+           
             coords = completeIP;
             retry = 5;
         }
@@ -85,6 +92,18 @@ namespace RestCSharpCHAOS
             }
             return String.Empty;
         }
+        public String queryhst(String device, Int64 startmsecEpoch, Int64 stopmsecEpoch,UInt32 ElementsPerPage)
+        {
+            String query = this.coords + "/CU?dev=" + device + "&cmd=queryhst&parm={\"start\":" + startmsecEpoch.ToString() + ",\"end\":" + stopmsecEpoch.ToString() +",\"page\":"+ElementsPerPage.ToString() +"}";
+            for (UInt32 count = 0; count < this.retry; count++)
+            {
+                String Ans = GetHtmlAnswer(query);
+                if (Ans != String.Empty)
+                    return Ans;
+
+            }
+            return String.Empty;
+        }
         public String queryhst(String device, DateTime start, DateTime stop)
         {
             Int64 startEpoch, stopEpoch;
@@ -92,6 +111,15 @@ namespace RestCSharpCHAOS
             stopEpoch = RestAPI.ToEpoch(stop);
             return this.queryhst(device, startEpoch, stopEpoch);
             
+        }
+
+        public String queryhst(String device, DateTime start, DateTime stop, UInt32 ElementsPerPage)
+        {
+            Int64 startEpoch, stopEpoch;
+            startEpoch = RestAPI.ToEpoch(start);
+            stopEpoch = RestAPI.ToEpoch(stop);
+            return this.queryhst(device, startEpoch, stopEpoch,ElementsPerPage);
+
         }
         public String queryhst(String device, DateTime start, DateTime stop,String param)
         {
@@ -129,12 +157,13 @@ namespace RestCSharpCHAOS
                 String Ans = GetHtmlAnswer(query);
                 if (Ans != String.Empty)
                     return Ans;
+                
 
             }
             return String.Empty;
         }
 
-        public String queryhstnext(String device,UInt32 iud)
+        public String queryhstnext(String device,UInt64 iud)
         {
             String query = this.coords + "/CU?dev=" + device + "&cmd=queryhstnext&parm={\"uid\":" + iud.ToString()+ "}";
             for (UInt32 count = 0; count < this.retry; count++)
@@ -146,7 +175,7 @@ namespace RestCSharpCHAOS
             }
             return String.Empty;
         }
-        public String queryhstnext(String device, UInt32 iud,String param)
+        public String queryhstnext(String device, UInt64 iud,String param)
         {
             String query = this.coords + "/CU?dev=" + device + "&cmd=queryhstnext&parm={\"uid\":" + iud.ToString() + ",\"var\":\"" + param + "\"}";
             for (UInt32 count = 0; count < this.retry; count++)
@@ -298,6 +327,12 @@ namespace RestCSharpCHAOS
                 String Ans = GetHtmlAnswer(query);
                 if (Ans != String.Empty)
                     return Ans;
+                else
+                {
+                    System.Threading.Thread.Sleep(500);
+                   
+                }
+                
 
             }
             return String.Empty;
@@ -395,18 +430,18 @@ namespace RestCSharpCHAOS
             }
             return String.Empty;
         }
-        public String restoreSnapshot(String device, String SnapName)
-        {
-            String query = this.coords + "/CU?dev=" + device + "&cmd=restore&parm={\"snapname\":\"" + SnapName + "\"}";
-            for (UInt32 count = 0; count < this.retry; count++)
-            {
-                String Ans = GetHtmlAnswer(query);
-                if (Ans != String.Empty)
-                    return Ans;
+        //public String restoreSnapshot(String device, String SnapName)
+        //{
+        //    String query = this.coords + "/CU?dev=" + device + "&cmd=restore&parm={\"snapname\":\"" + SnapName + "\"}";
+        //    for (UInt32 count = 0; count < this.retry; count++)
+        //    {
+        //        String Ans = GetHtmlAnswer(query);
+        //        if (Ans != String.Empty)
+        //            return Ans;
 
-            }
-            return String.Empty;
-        }
+        //    }
+        //    return String.Empty;
+        //}
         public String deleteSnapshot(String device, String SnapName)
         {
             String query = this.coords + "/CU?dev=" + device + "&cmd=delete&parm={\"snapname\":\"" + SnapName + "\"}";
@@ -438,6 +473,39 @@ namespace RestCSharpCHAOS
             return String.Empty;
 
         }
+
+
+
+        public static bool SetAllowUnsafeHeaderParsing20()
+        {
+            //Get the assembly that contains the internal class
+            System.Reflection.Assembly aNetAssembly = System.Reflection.Assembly.GetAssembly(typeof(System.Net.Configuration.SettingsSection));
+            if (aNetAssembly != null)
+            {
+                //Use the assembly in order to get the internal type for the internal class
+                Type aSettingsType = aNetAssembly.GetType("System.Net.Configuration.SettingsSectionInternal");
+                if (aSettingsType != null)
+                {
+                    //Use the internal static property to get an instance of the internal settings class.
+                    //If the static instance isn't created allready the property will create it for us.
+                    object anInstance = aSettingsType.InvokeMember("Section",
+                      System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.GetProperty | System.Reflection.BindingFlags.NonPublic, null, null, new object[] { });
+
+                    if (anInstance != null)
+                    {
+                        //Locate the private bool field that tells the framework is unsafe header parsing should be allowed or not
+                        System.Reflection.FieldInfo aUseUnsafeHeaderParsing = aSettingsType.GetField("useUnsafeHeaderParsing", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                        if (aUseUnsafeHeaderParsing != null)
+                        {
+                            aUseUnsafeHeaderParsing.SetValue(anInstance, true);
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+      
 
     }
     
