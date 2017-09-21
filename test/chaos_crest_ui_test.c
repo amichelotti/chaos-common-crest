@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "chaos_crest.h"
+#include <string.h>
 /*
  * 
  */
@@ -19,7 +20,6 @@ exit(1)
 int main(int argc, char** argv) {
     char *url=0;
     chaos_crest_handle_t handle;
-    uint32_t cu0,cu1;
     uint64_t tm;
     int ret= 0;
     // data variables

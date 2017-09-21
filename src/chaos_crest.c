@@ -69,7 +69,7 @@ typedef struct _chaos_crest_handle{
 } _chaos_crest_handle_t;
 
 
-static int http_post(chaos_crest_handle_t h,char*api,char*trx_buffer,int tsizeb,char*rx_buffer,int rsizeb){
+static int http_post(chaos_crest_handle_t h,const char*api,const char*trx_buffer,int tsizeb,char*rx_buffer,int rsizeb){
   _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
   int ret;
   if(rx_buffer==0){
@@ -168,7 +168,6 @@ chaos_crest_handle_t chaos_crest_open(const char* chaoswan_url) {
     char*hostname = host;
     char*sport;
     int port;
-    int one=1;
     int opts;
     _chaos_crest_handle_t*h;
     strcpy(host, chaoswan_url);
@@ -482,7 +481,6 @@ static int push_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){
     int cnt;
     char*pnt;
     char url[256];
-    char buffer_rx[MAXBUFFER];
 
     int csize;
     unsigned long long ts;
@@ -516,7 +514,6 @@ static int push_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){
 }
 int chaos_crest_register(chaos_crest_handle_t h,uint32_t cu_cuid){
    _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
-    cu_t* cu=p->cus;
     int ret;
     char buffer[MAXBUFFER];
     if(cu_cuid == 0){
@@ -534,7 +531,6 @@ int chaos_crest_register(chaos_crest_handle_t h,uint32_t cu_cuid){
 
 int chaos_crest_push(chaos_crest_handle_t h,uint32_t cu_uid){
     _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
-    cu_t* cu=p->cus;
     int ret;
     char buffer[MAXBUFFER];
      if(cu_uid == 0){
@@ -662,7 +658,6 @@ static char* getBsonValue(char*input,char*key){
   return getBsonValue_r(input,key,buffer,sizeof(buffer));
 }
 uint64_t chaos_crest_cu_get(chaos_crest_handle_t h,const char*cuname,char*output,int maxsize){
-  uint64_t rett=0;
   
   char cmd[256];
   _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
@@ -687,9 +682,7 @@ uint64_t chaos_crest_cu_get(chaos_crest_handle_t h,const char*cuname,char*output
 }
 uint64_t chaos_crest_cu_get_key_value(chaos_crest_handle_t h,const char*cuname,char*keys,char*values,int maxsize){
   uint64_t rett=0;
-  char cmd[256];
-  _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
-  int ret;
+  
   char tmpbuffer[maxsize*2];
   
   if(keys==0 || cuname==0 || values==0)
@@ -743,7 +736,6 @@ uint64_t chaos_crest_cu_get_channel(chaos_crest_handle_t h,const char*cuname,con
   ret=  chaos_crest_cu_get(h,cuname,buf,sizeof(buf));
   if(ret>0){
     
-    char search[256];
     char *pnt=getBsonValue_r(buf,(char*)channame,output,maxsize);
     if(*pnt!=0){
       return ret;
