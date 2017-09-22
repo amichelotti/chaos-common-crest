@@ -38,6 +38,7 @@ typedef struct _http {
 #endif
 
 #include "http_lib.h"
+static int getResponse(http_handle_t h, char*buffer, int max_size);
 
 static void* receive(void*pp){
     _http_handle_t* p=(_http_handle_t*)pp;
@@ -46,6 +47,7 @@ static void* receive(void*pp){
 	DPRINT("received %d %d, retcode %d,%s\n",p->sendid,p->recvid,p->retcode,p->answer);
         pthread_cond_signal(&p->cond);
     }
+    return NULL;
 }
 http_handle_t http_client_init(int sock){
     _http_handle_t* p=calloc(1,sizeof(_http_handle_t));
@@ -203,7 +205,7 @@ int getResponse(http_handle_t h, char*buffer, int max_size) {
   int sock=p->sock;
   int ret;
   int retcode = HTTP_ERROR_PARSING_POST_RESPONSE, response_size = 0;
-  int cnt = 0, cntb = 0,copy_buffer=0,enc_cnt=0;
+  int cnt = 0, copy_buffer=0,enc_cnt=0;
   int retry = HTTP_POST_FILE_RETRY;
     char buf;
     char encoding_buf[256];
@@ -343,7 +345,7 @@ $binarydata
 --AaB03x--
  */
 
-int http_perform_request(http_handle_t h,const char*method,char* hostname, const char*agent,char* api, char*content, char* parameters){
+int http_perform_request(http_handle_t h,const char*method,const char* hostname, const char*agent,const char* api, const char*content, const char* parameters){
   _http_handle_t* p=(_http_handle_t*)h;
   int ret; 
   char buffer[4096];
@@ -380,7 +382,7 @@ int http_perform_request(http_handle_t h,const char*method,char* hostname, const
   return ret;
 }
  
- int http_request(http_handle_t h, const char*method,char* hostname, const char*agent,char* api, char*content,char* parameters, char* message, int size) {
+ int http_request(http_handle_t h, const char*method,const char* hostname, const char*agent,const char* api, const char*content,const char* parameters, char* message, int size) {
    int ret;
    
    

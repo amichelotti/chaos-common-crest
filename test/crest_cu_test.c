@@ -146,9 +146,9 @@ int main(int argc, char** argv) {
         exit(1);
     }
     
-    qdc0=ADD_CU(handle,"BTF_SIM/QDC0",qdc0);
-    qdc1=ADD_CU(handle,"BTF_SIM/QDC1",qdc1);
-    scaler=ADD_CU(handle,"BTF_SIM/SCALER",scaler);
+    qdc0=ADD_CU(handle,"BTF/DIAG/DAQ/QDC/QDC965LO",qdc0);
+    qdc1=ADD_CU(handle,"BTF/DIAG/DAQ/QDC/QDC965HI",qdc1);
+    scaler=ADD_CU(handle,"BTF/DIAG/DAQ/SCALER",scaler);
 
     printf("* connecting to %s...\n",url);
     /*    

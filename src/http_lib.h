@@ -12,11 +12,11 @@ typedef void* http_handle_t;
  */
 http_handle_t http_client_init(int sock);
 void http_client_deinit(http_handle_t h);
-int http_perform_request(http_handle_t h,const char*method,char* hostname, const char*agent,char* api, char*content, char* parameters);
+int http_perform_request(http_handle_t h,const char*method,const char* hostname, const char*agent,const char* api, const char*content, const char* parameters);
 int http_get_answer(http_handle_t h, char* message, int size);
 int http_wait_answer(http_handle_t h, char* message, int size);
 
-int http_request(http_handle_t h, const char*method,char* hostname, const char*agent,char* api, char*content, char* parameters, char* message, int size);
+int http_request(http_handle_t h, const char*method,const char* hostname, const char*agent,const char* api, const char*content, const char* parameters, char* message, int size);
 
 #define HTTP_GET_FILE_RETRY 50
 #define HTTP_POST_FILE_RETRY 30
