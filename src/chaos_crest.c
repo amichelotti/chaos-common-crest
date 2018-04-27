@@ -205,7 +205,7 @@ chaos_crest_handle_t chaos_crest_open(const char* chaoswan_url) {
         printf("## Unable to locate host %s\n",hostname);
         return 0;
     }
-    bcopy(host_addr->h_addr, &h->sin.sin_addr.s_addr, host_addr->h_length);
+    bcopy(host_addr->h_addr_list[0], &h->sin.sin_addr.s_addr, host_addr->h_length);
     h->hostname=strdup(host_addr->h_name);
     h->http=http_client_init(sock);
     if(h->http==0){
