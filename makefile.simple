@@ -1,0 +1,29 @@
+# Specify extensions of files to delete when cleaning
+CLEANEXTS   = o a 
+
+# Specify the target file and the install directory
+OUTPUTFILE  = libchaos_crest.a
+INSTALLDIR  = binaries
+
+# Default target
+.PHONY: all
+all: $(OUTPUTFILE)
+
+# Build 
+$(OUTPUTFILE): http_lib.o chaos_crest.o
+    ar ru $@ $^
+    ranlib $@
+
+
+.PHONY: install
+install:
+    mkdir -p $(INSTALLDIR)
+    cp -p $(OUTPUTFILE) $(INSTALLDIR)
+
+.PHONY: clean 
+clean:
+    for file in $(CLEANEXTS); do rm -f *.$$file; done
+
+# Indicate dependencies of .ccp files on .hpp files
+http_lib.o: http_lib.h
+chaos_crest.o: chaos_crest.h
