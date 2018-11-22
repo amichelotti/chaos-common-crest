@@ -510,7 +510,7 @@ static int push_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){
       p->npush++;
         return 0;
     } else {
-        printf("## post ret: %d to:\"%s\" of:\"%s\" result:\"%s\"",ret,url,buffer,buffer_rx);
+        printf("## post ret: %d to:\"%s\" of:\"%s\" result:\"%s\"",err,url,buffer,buffer_rx);
 
     }
     
