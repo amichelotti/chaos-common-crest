@@ -140,7 +140,7 @@ main(int argc,char *argv[]) {
         fdata=3.14*cnt;
         if((ret=chaos_crest_push(handle,cu0))!=0){
 	        printf("## error pushing ret:%d\n",ret);
-          //return ret;
+          return ret;
         }
     }
     chaos_crest_close(handle);

@@ -482,7 +482,7 @@ static int push_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){
     int cnt;
     char*pnt;
     char url[256];
-
+    int err;
     int csize;
     unsigned long long ts;
     if((cu_uid>p->ncus) || (cu_uid<=0)){
@@ -501,14 +501,17 @@ static int push_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){
     strcat(buffer,"}");
     
     snprintf(url,sizeof(url),"/api/v1/producer/insert/%s",cu->name);
-    
-    if(http_post(h,url,buffer,strlen(buffer),0,0/*buffer_rx,sizeof(buffer_rx)*/)==0){
+    char buffer_rx[8192];
+    if((err=http_post(h,url,buffer,strlen(buffer),buffer_rx,sizeof(buffer_rx)))==0){
       uint32_t t=(getEpoch() -ts); 
       p->tot_push_time+= t;
       p->max_push=(t>p->max_push)?t:p->max_push;
       p->min_push=(t<p->min_push)&& (t>0)?t:p->min_push;
       p->npush++;
         return 0;
+    } else {
+        printf("## post ret: %d to:\"%s\" of:\"%s\" result:\"%s\"",ret,url,buffer,buffer_rx);
+
     }
     
     return -9; // registration failure
