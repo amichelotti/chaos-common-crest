@@ -43,7 +43,7 @@ END_CU_DATASET;
 main(int argc,char *argv[]) {
   char chaosserver[64];
   char cuname[64];
-  int cnt,ret;
+  int cnt=0,ret=0;
   chaos_crest_handle_t handle;
   uint32_t cu0;
   int32_t idata32=0;
@@ -66,20 +66,13 @@ main(int argc,char *argv[]) {
   number_of_words = 0;
   adm = 0;
   
-  if (argc < 3) {
-    printf("## you must provide a valid chaos server address and a cuname\n");
-    
-    return -1;
-  }
-  
-  argv++; argc--;
   while (cnt<argc) {
     if((!strcmp(argv[cnt],"-s"))&&((cnt+1)<argc)){
-      strncpy(chaosserver,sizeof(chaosserver),argv[++cnt]);
+      strncpy(chaosserver,argv[++cnt],sizeof(chaosserver));
       continue;
     }
     if((!strcmp(argv[cnt],"-n"))&&((cnt+1)<argc)){
-      strncpy(cuname,sizeof(cuname),argv[++cnt]);
+      strncpy(cuname,argv[++cnt],sizeof(cuname));
       continue;
     }
     if((!strcmp(argv[cnt],"-a"))&&((cnt+1)<argc)){
@@ -90,6 +83,7 @@ main(int argc,char *argv[]) {
       fprintf(stdout,Usage,argv[0]);
       return 0;
     }
+	cnt++;
   }
    
    if(*chaosserver==0){
@@ -123,7 +117,7 @@ main(int argc,char *argv[]) {
     }
     printf("* registering to %s...\n",chaosserver);
     // 0 means all defined CU
-    if((ret=chaos_crest_register(handle,0))!=0){
+    if((ret=chaos_crest_register(handle,cu0))!=0){
       printf("## cannot register CUs, error:%d\n",ret);
       return -9;
     }
@@ -144,9 +138,9 @@ main(int argc,char *argv[]) {
         idata32++;
         idata64+=2;
         fdata=3.14*cnt;
-        if((ret=chaos_crest_push(handle,0))!=0){
+        if((ret=chaos_crest_push(handle,cu0))!=0){
 	        printf("## error pushing ret:%d\n",ret);
-          return -4;
+          //return ret;
         }
     }
     chaos_crest_close(handle);

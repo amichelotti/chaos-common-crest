@@ -62,7 +62,7 @@ typedef struct _chaos_crest_handle{
     int connected;
     uint64_t tot_registration_time;
     uint64_t tot_push_time;
-    uint32_t npush;
+    uint64_t npush;
     uint32_t nreg;
   uint32_t min_push;
   uint32_t max_push;
@@ -422,7 +422,7 @@ int chaos_crest_close(chaos_crest_handle_t h){
 
 static int dump_attribute_desc(ds_t *attr,char*dir,char*buffer,int size,int last){
     
-    return snprintf(buffer,size,"{\"ds_attr_name\":\"%s\",\"ds_attr_desc\":\"%s\",\"ds_attr_type\":\"%s\",\"ds_attr_dir\":\"%s\"}%s",
+    return snprintf(buffer,size,"{\"cudk_ds_attr_name\":\"%s\",\"cudk_ds_attr_desc\":\"%s\",\"cudk_ds_attr_type\":\"%s\",\"cudk_ds_attr_dir\":\"%s\"}%s",
             attr->name,attr->desc,typeToString(attr->type),dir,last?"":",");
 }
 
@@ -446,9 +446,10 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
         return -8;
     }
     cu=p->cus + (cu_uid-1);
+    p->npush=0;
     DPRINT("registering CU \"%s\" UID:%d IN:%d, OUT:%d\n",cu->name,cu_uid,cu->nin,cu->nout);
     ts=getEpoch();
-    snprintf(buffer,size,"{\"ds_attr_dom\":\"%s\",\"ds_timestamp\":%llu,\"ds_desc\":[",cu->name,ts);
+    snprintf(buffer,size,"{\"ndk_uid\":\"%s\",\"cudk_ds_timestamp\":%llu,\"cudk_ds_desc\":[",cu->name,ts);
     for(cnt=0;cnt<cu->nin;cnt++){
         csize=strlen(buffer);
         pnt=buffer+csize;
@@ -491,7 +492,7 @@ static int push_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){
     
     cu=p->cus + (cu_uid-1);
     ts =getEpoch();
-    snprintf(buffer,size,"{\"dpck_ts\":%llu%s",getEpoch(),cu->nout>0?",":"");
+    snprintf(buffer,size,"{\"ndk_uid\":\"%s\",\"dpck_ds_type\":%d,\"dpck_seq_id\":%llu,\"dpck_ats\":%llu%s,",cu->name,0,p->npush,getEpoch(),cu->nout>0?",":"");
     for(cnt=0;cnt<cu->nout;cnt++){
         csize=strlen(buffer);
         pnt=buffer+csize;
