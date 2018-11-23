@@ -138,6 +138,7 @@ main(int argc,char *argv[]) {
         idata32++;
         idata64+=2;
         fdata=3.14*cnt;
+	sleep(1);
         if((ret=chaos_crest_push(handle,cu0))!=0){
 	        printf("## error pushing ret:%d\n",ret);
           return ret;

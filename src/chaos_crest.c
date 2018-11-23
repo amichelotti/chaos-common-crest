@@ -20,7 +20,13 @@
 #include <assert.h>
 #include <unistd.h>
 #include <netdb.h>
+#define MOONGOOSE
+#ifndef MOONGOOSE
 #include <http_lib.h>
+#else
+#include "mongoose.h"
+#endif
+
 #define MAXDIGITS 16
 #define MAXBUFFER 8192
 
@@ -51,11 +57,17 @@ typedef struct _cu {
 
 
 typedef struct _chaos_crest_handle{
+
+
     char* wan_url;
+   
     int sock_fd;
     char*hostname;
+#ifndef MOONGOOSE
     http_handle_t http;
-
+#else
+  struct mg_mgr mgr;
+#endif
     cu_t *cus;
     int ncus;
     struct sockaddr_in sin;
@@ -66,12 +78,56 @@ typedef struct _chaos_crest_handle{
     uint32_t nreg;
   uint32_t min_push;
   uint32_t max_push;
+
 } _chaos_crest_handle_t;
 
+#ifdef MOONGOOSE
+static int s_exit_flag = 0;
+
+static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
+  struct http_message *hm = (struct http_message *) ev_data;
+  int connect_status;
+
+  switch (ev) {
+    case MG_EV_CONNECT:
+      connect_status = *(int *) ev_data;
+      if (connect_status != 0) {
+        printf("Error connecting to %s: %s\n", hm->uri, strerror(connect_status));
+        s_exit_flag = -1;
+      }
+      break;
+    case MG_EV_HTTP_REPLY:
+      printf("Got reply:\n%.*s\n%d\n", (int) hm->body.len, hm->body.p,hm->resp_code);
+      nc->flags |= MG_F_SEND_AND_CLOSE;
+      s_exit_flag = hm->resp_code;
+      break;
+    case MG_EV_CLOSE:
+      if (s_exit_flag == 0) {
+        printf("Server closed connection\n");
+        s_exit_flag = 1;
+      };
+      break;
+    default:
+      break;
+  }
+}
+#endif
 
 static int http_post(chaos_crest_handle_t h,const char*api,const char*trx_buffer,int tsizeb,char*rx_buffer,int rsizeb){
   _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
   int ret;
+  struct mg_connection *nc;
+  char s_url[256];
+  snprintf(s_url,sizeof(s_url),"%s%s",p->wan_url,api);
+  s_exit_flag = 0;
+  nc = mg_connect_http(&p->mgr, ev_handler, s_url, "Content-Type:application/json\r\nConnection: keep-alive\r\n",trx_buffer);
+  while (s_exit_flag == 0) {
+    mg_mgr_poll(&p->mgr, 1000);
+  }
+  ret=(s_exit_flag>0);
+#ifndef MOONGOOSE
+  
+
   if(rx_buffer==0){
     ret = http_perform_request(p->http,"POST",p->hostname, "chaos_crest",api, "application/json",trx_buffer);
     if(ret>0){
@@ -83,7 +139,8 @@ static int http_post(chaos_crest_handle_t h,const char*api,const char*trx_buffer
   }
   if(ret==200)
     return 0;
-  
+#else
+#endif  
   return ret;
 }
 
@@ -161,8 +218,10 @@ static unsigned long long getEpoch(){
     return ret;
 }
 chaos_crest_handle_t chaos_crest_open(const char* chaoswan_url) {
+
+#ifndef MOONGOOSE
+
     struct hostent * host_addr;
-    
     char host[256];
     int sock;
     char*hostname = host;
@@ -222,11 +281,19 @@ chaos_crest_handle_t chaos_crest_open(const char* chaoswan_url) {
       return 0;
     }
     DPRINT("* open socket %d \"%s\"->\"%s\":\"%d\"\n",h->sock_fd,h->hostname,hostname,port);
-    
+#else 
+  _chaos_crest_handle_t*h;
+  h = (_chaos_crest_handle_t*)malloc(sizeof(_chaos_crest_handle_t));
+  h->wan_url=strdup(chaoswan_url);
+  mg_mgr_init(&h->mgr, NULL);
+#endif
+
     return h;
 }
 
 int chaos_crest_connect(chaos_crest_handle_t h) {
+#ifndef MOONGOOSE
+
     _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
     int ret;
     p->connected=0;
@@ -242,7 +309,9 @@ int chaos_crest_connect(chaos_crest_handle_t h) {
         return -101;
     }
     p->connected=1;
+#endif
     return 0;
+  
 }
 
 uint32_t chaos_crest_add_cu(chaos_crest_handle_t h,const char*name,chaos_ds_t* dsin,int dsitems){
@@ -365,9 +434,15 @@ int chaos_crest_update_by_name(chaos_crest_handle_t h,uint32_t cu_uid,char* attr
 int chaos_crest_close(chaos_crest_handle_t h){
     int cnt;
     _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
+#ifndef MOONGOOSE
     http_client_deinit(p->http);
-    cu_t* cus= p->cus;
     close(p->sock_fd);
+#else
+      mg_mgr_free(&p->mgr);
+
+#endif
+    cu_t* cus= p->cus;
+    
 
     for(cnt=0;cnt<p->ncus;cnt++){
       int cntt;
@@ -463,7 +538,8 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
        
     }
     strcat(buffer,"]}");
-    snprintf(url,sizeof(url),"/api/v1/producer/register/%s",cu->name);
+    //    snprintf(url,sizeof(url),"/api/v1/producer/register/%s",cu->name);
+    snprintf(url,sizeof(url),"/api/v1/producer/register");
     *buffer_rx=0;
     if((ret=http_post(h,url,buffer,strlen(buffer),buffer_rx,sizeof(buffer_rx)))==0){
         p->tot_registration_time+= (getEpoch() -ts); 
@@ -492,7 +568,7 @@ static int push_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){
     
     cu=p->cus + (cu_uid-1);
     ts =getEpoch();
-    snprintf(buffer,size,"{\"ndk_uid\":\"%s\",\"dpck_ds_type\":%d,\"dpck_seq_id\":%llu,\"dpck_ats\":%llu%s,",cu->name,0,p->npush,getEpoch(),cu->nout>0?",":"");
+    snprintf(buffer,size,"{\"ndk_uid\":\"%s\",\"dpck_ds_type\":%d,\"dpck_seq_id\":%llu,\"dpck_ats\":%llu%s",cu->name,0,p->npush,getEpoch(),cu->nout>0?",":"");
     for(cnt=0;cnt<cu->nout;cnt++){
         csize=strlen(buffer);
         pnt=buffer+csize;
@@ -500,7 +576,8 @@ static int push_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){
     }
     strcat(buffer,"}");
     
-    snprintf(url,sizeof(url),"/api/v1/producer/insert/%s",cu->name);
+    //    snprintf(url,sizeof(url),"/api/v1/producer/insert/%s",cu->name);
+    snprintf(url,sizeof(url),"/api/v1/producer/insert");
     char buffer_rx[8192];
     if((err=http_post(h,url,buffer,strlen(buffer),buffer_rx,sizeof(buffer_rx)))==0){
       uint32_t t=(getEpoch() -ts); 
@@ -589,7 +666,10 @@ int chaos_crest_cu_cmd(chaos_crest_handle_t h,const char*cuname,const char*cmd,c
   } else {
     sprintf(command,"/CU?dev=%s&cmd=%s",cuname,cmd);
   }
+#ifndef MOONGOOSE
+
   ret = http_request(p->http,"GET",p->wan_url, "chaos_crest_cu_cmd",command, "application/text","", 0, 0);
+#endif
   if(ret==200)
     return 0;
   
@@ -669,8 +749,10 @@ uint64_t chaos_crest_cu_get(chaos_crest_handle_t h,const char*cuname,char*output
   if(output==0 || cuname==0)
     return 0;
   sprintf(cmd,"/CU?dev=%s&cmd=status",cuname);
-  
+  #ifndef MOONGOOSE
+
   ret = http_request(p->http,"GET",p->wan_url, "chaos_crest_cu_get",cmd, "html/text",0, output, maxsize);
+  #endif
   if(ret<0){
     printf("## error getting cu %s\n",cuname);
   }
