@@ -92,18 +92,18 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
     case MG_EV_CONNECT:
       connect_status = *(int *) ev_data;
       if (connect_status != 0) {
-        printf("Error connecting to %s: %s\n", hm->uri, strerror(connect_status));
+       // printf("Error connecting to %s: %s\n", hm->uri, strerror(connect_status));
         s_exit_flag = -1;
       }
       break;
     case MG_EV_HTTP_REPLY:
-      printf("Got reply:\n%.*s\n%d\n", (int) hm->body.len, hm->body.p,hm->resp_code);
+     // printf("Got reply:\n%.*s\n%d\n", (int) hm->body.len, hm->body.p,hm->resp_code);
       nc->flags |= MG_F_SEND_AND_CLOSE;
       s_exit_flag = hm->resp_code;
       break;
     case MG_EV_CLOSE:
       if (s_exit_flag == 0) {
-        printf("Server closed connection\n");
+    //    printf("Server closed connection\n");
         s_exit_flag = 1;
       };
       break;
@@ -120,11 +120,11 @@ static int http_post(chaos_crest_handle_t h,const char*api,const char*trx_buffer
   char s_url[256];
   snprintf(s_url,sizeof(s_url),"%s%s",p->wan_url,api);
   s_exit_flag = 0;
-  nc = mg_connect_http(&p->mgr, ev_handler, s_url, "Content-Type:application/json\r\nConnection: keep-alive\r\n",trx_buffer);
+  nc = mg_connect_http(&p->mgr, ev_handler, s_url, "Content-Type:application/json\r\nConnection:keep-alive\r\n",trx_buffer);
   while (s_exit_flag == 0) {
     mg_mgr_poll(&p->mgr, 1000);
   }
-  ret=(s_exit_flag>0);
+  ret=(s_exit_flag>0)?0:s_exit_flag;
 #ifndef MOONGOOSE
   
 
@@ -175,6 +175,24 @@ int chaos_crest_json_push(chaos_crest_handle_t h,const char* cu_uid, const char*
   return ret;
 }
 
+static const char* typeNumberToString(int type){
+  static char buf[256];
+  if(type==TYPE_INT32){
+
+             return "int32";
+    } else if(type==TYPE_INT64){
+             return "int64";
+    } else if(type==TYPE_DOUBLE){
+             return "double";
+    } else if(type==TYPE_STRING){
+             return "string";
+             
+    } else {
+             printf("## unsupported type(for the moment)\n");
+             assert(0);
+    }
+    return "";
+}
 static const char* typeToString(int type){
     if(type==TYPE_INT32){
              return "int32";
@@ -194,13 +212,13 @@ static const char* typeToString(int type){
 
 static const char* typeToFormat(int type){
  if(type==TYPE_INT32){
-             return "d";
+             return "%d";
     } else if(type==TYPE_INT64){
-             return "lld";
+             return "{ \"$numberLong\" : \"%lld\" }";
     } else if(type==TYPE_DOUBLE){
-             return "f";
+             return "{ \"$numberDouble\": \"%lf\" }";
     } else if(type==TYPE_STRING){
-             return "s";
+             return "%s";
              
     } else {
              printf("## unsupported type(for the moment)\n");
@@ -362,9 +380,9 @@ uint32_t chaos_crest_add_cu(chaos_crest_handle_t h,const char*name,chaos_ds_t* d
             p->cus[p->ncus].outds[cnt_out].desc= strdup(dsin[cnt].desc);
             p->cus[p->ncus].outds[cnt_out].type= dsin[cnt].type;
             p->cus[p->ncus].outds[cnt_out].size= dsin[cnt].size;
-            stype=typeToString(dsin[cnt].type);
+            //stype=typeToString(dsin[cnt].type);
             sformat=typeToFormat(dsin[cnt].type);
-            snprintf(stringa,sizeof(stringa),"\"%s\":\"%s:%%%s\"",dsin[cnt].name,stype,sformat);
+            snprintf(stringa,sizeof(stringa),"\"%s\":%s",dsin[cnt].name,sformat);
             p->cus[p->ncus].outds[cnt_out].format=strdup(stringa);
 	    p->cus[p->ncus].outds[cnt_out].size= (strlen(stringa)+1+dsin[cnt].size+MAXDIGITS) ;
 	    DPRINT("allocating %d bytes\n",p->cus[p->ncus].outds[cnt_out].size);
@@ -506,6 +524,7 @@ static int dump_attribute_value(ds_t *attr,char*buffer,int size,int last){
     return snprintf(buffer,size,"%s%s",
             attr->data,last?"":",");
 }
+/*
 static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){
     _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
     cu_t* cu;
@@ -550,9 +569,9 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
     printf("post failed to:\"%s\" ret:%d,server answer:'%s'\n",url,ret,buffer_rx);
     return -9; // registration failure
 }
+*/
 
-
-static int push_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){
+static int push_cu_int(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size,int mode){
     _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
     cu_t* cu;
     int cnt;
@@ -577,7 +596,12 @@ static int push_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){
     strcat(buffer,"}");
     
     //    snprintf(url,sizeof(url),"/api/v1/producer/insert/%s",cu->name);
-    snprintf(url,sizeof(url),"/api/v1/producer/insert");
+    if(mode>0){
+      snprintf(url,sizeof(url),"/api/v1/producer/jsoninsert");
+    } else {
+      snprintf(url,sizeof(url),"/api/v1/producer/jsonregister");
+
+    }
     char buffer_rx[8192];
     if((err=http_post(h,url,buffer,strlen(buffer),buffer_rx,sizeof(buffer_rx)))==0){
       uint32_t t=(getEpoch() -ts); 
@@ -592,6 +616,44 @@ static int push_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){
     }
     
     return -9; // registration failure
+}
+static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){
+      _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
+
+  cu_t* cu;
+  int cnt;
+    char*pnt;
+    char url[256];
+    int err;
+    int csize;
+    unsigned long long ts;
+    if((cu_uid>p->ncus) || (cu_uid<=0)){
+        printf("## bad Id %d",cu_uid);
+        return -8;
+    }
+    
+    cu=p->cus + (cu_uid-1);
+    for(cnt=0;cnt<cu->nout;cnt++){
+      ds_t*p=cu->outds+cnt;
+//      printf("format : %d->%s\n",p->type,p->format);
+
+      if(p->type==TYPE_INT32){
+        snprintf(p->data,p->size,p->format,0);
+    } else if(p->type==TYPE_INT64){
+       snprintf(p->data,p->size,p->format,0);
+    } else if(p->type==TYPE_DOUBLE){
+       snprintf(p->data,p->size,p->format,1.2);
+    }else if(p->type==TYPE_STRING){
+       snprintf(p->data,p->size,p->format,"");
+    }  
+    }
+  return push_cu_int(h,cu_uid,buffer,size,0);
+
+}
+
+static int push_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int size){
+  return push_cu_int(h,cu_uid,buffer,size,1);
+
 }
 int chaos_crest_register(chaos_crest_handle_t h,uint32_t cu_cuid){
    _chaos_crest_handle_t*p=(_chaos_crest_handle_t*)h;
