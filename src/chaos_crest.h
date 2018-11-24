@@ -31,7 +31,7 @@ typedef struct _chaos_ds{
 #define TYPE_INT64 0x2
 #define TYPE_DOUBLE 0x4
 #define TYPE_STRING 0x8
-#define TYPE_BUFFER 0x10
+#define TYPE_BINARY 0x10
 #define TYPE_VECTOR 0x1000
 
 #define DIR_INPUT 0

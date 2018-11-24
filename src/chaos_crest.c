@@ -4,7 +4,7 @@
  * @date 26/2/2015
  * Simple apis to access chaos using http rest
  */
-
+#include "b64.h"
 #include "chaos_crest.h"
 #include <stdlib.h>
 #include <signal.h>
@@ -220,6 +220,9 @@ static const char* typeToFormat(int type){
     } else if(type==TYPE_STRING){
              return "%s";
              
+    } else if(type==TYPE_BINARY){
+             return "{ \"$binary\": \"%lf\" }";
+             
     } else {
              printf("## unsupported type(for the moment)\n");
              assert(0);
@@ -414,6 +417,13 @@ static int update_attribute(cu_t *cu,int attr,void*data){
        snprintf(p->data,p->size,p->format,*(double*)data);
     }else if(p->type==TYPE_STRING){
        snprintf(p->data,p->size,p->format,(char*)data);
+    }else if(p->type==TYPE_BINARY){
+      char *bsa=b64_encode((char*)data,p->size);
+      if(bsa){
+        snprintf(p->data,p->size,p->format,bsa);
+        free(bsa);
+      }
+      
     }
     DPRINT("updating [%d]\"%s\" format \"%s\" size:%d type:%d (0x%x)\n",attr,p->data,p->format,p->size,p->type,data);
     return 0;
