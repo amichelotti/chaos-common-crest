@@ -25,6 +25,7 @@ typedef struct _chaos_ds{
     int        dir;
     int        type;
     int        size;
+    int        alloc_size;
 } chaos_ds_t;
 
 #define TYPE_INT32 0x1
@@ -43,7 +44,7 @@ typedef struct _chaos_ds{
 static chaos_ds_t dataset_ ## _x[]={
 
 #define DEFINE_ATTRIBUTE(name,desc,dir,type,size) \
-{name,desc,dir,type},
+{name,desc,dir,type,size},
 
 #define END_CU_DATASET }
 

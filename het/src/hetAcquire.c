@@ -17,6 +17,8 @@ Usage: %s \
 #include <string.h>
 #ifdef MOTOROLA
 #include "Vme.h"
+#include "Data.h" 
+
 #include <vmedrv.h>
 #endif
 #include <sys/mman.h>
@@ -30,13 +32,11 @@ static  unsigned int pno1,pno2;
 static  unsigned short *vme_ptrs,*vme_ptrs1;
 static  unsigned char *vme_ptrc,*vme_ptrc1;
 void MyExceptionHandler(int);
- 
-
+ //(TYPE_VECTOR|TYPE_INT32)
+#define FIFO_SIZE 1024
 DEFINE_CU_DATASET(het_cu)
-DEFINE_ATTRIBUTE("config","configuration channel",DIR_INPUT,TYPE_INT32,sizeof(int32_t))
-DEFINE_ATTRIBUTE("channel0","1 channel",DIR_OUTPUT,TYPE_INT32,sizeof(int32_t))
-DEFINE_ATTRIBUTE("channel1","2 channel",DIR_OUTPUT,TYPE_INT64,sizeof(int64_t))
-DEFINE_ATTRIBUTE("channel2_double","3 channel",DIR_OUTPUT,TYPE_DOUBLE,sizeof(double))
+DEFINE_ATTRIBUTE("SR6","SR6 REGISTER",DIR_OUTPUT,TYPE_INT32,sizeof(int32_t))
+DEFINE_ATTRIBUTE("FIFO","HET Fifo",DIR_OUTPUT,(TYPE_BINARY),FIFO_SIZE*sizeof(int32_t))
 //DEFINE_ATTRIBUTE("channel3_stringa","4 channel",DIR_OUTPUT,TYPE_STRING,128)
 END_CU_DATASET;        
 
@@ -46,25 +46,15 @@ main(int argc,char *argv[]) {
   int cnt=0,ret=0;
   chaos_crest_handle_t handle;
   uint32_t cu0;
-  int32_t idata32=0;
-  int64_t idata64=0;
-  double fdata=0;
+  int32_t fifo[FIFO_SIZE];
+
    
   unsigned int address;
-  int setvar, setacc, prova_check=0, status,err;
+  int r6=0;
   /* unsigned long dataint,readint,databuf;*/
-  unsigned int dataint,readint,databuf;
-  unsigned short datashort,readword;
-  unsigned char datachar,readchar;
-  int ii, number_of_words,size,het_fd, het_fd1,signal_nr, adm;
   *chaosserver=0;
   *cuname=0;
-  address = 0;
-  datachar = 0;
-  datashort = 0;
-  dataint = 0;
-  number_of_words = 0;
-  adm = 0;
+  address = 0x01000000;
   
   while (cnt<argc) {
     if((!strcmp(argv[cnt],"-s"))&&((cnt+1)<argc)){
@@ -99,10 +89,17 @@ main(int argc,char *argv[]) {
   printf("cuname = %s \n",cuname);
   printf("HET VME ADDRESS = %08x \n",address);
  #ifdef MOTOROLA
+   VmeInit(&het_fd);
+   SetDefaults();
+  data.basaddr = 0x01000000; 
+  data.am = VME_A32;            
+  data.dtsize = VME_D32; 
+  /*
   het_fd = VmeOpenChannel("het", "het");
   VmeSetExceptionHandling(Vme_EXCEPTION_EXIT);
   VmeSetProperty(het_fd, Vme_SET_DTYPE, 0);
   org_ptr =  (unsigned int *)VmeMapAddress(het_fd, 0xffff0000&address, 0x1000000, adm);
+  */
  #endif
  
   handle=chaos_crest_open(chaosserver);
@@ -124,91 +121,42 @@ main(int argc,char *argv[]) {
     printf("* registration average  %f ms...\n",chaos_crest_reg_time(handle));
     printf("* pushing to %s...\n",chaosserver);
     cnt=0;
+
     while(1){
-       idata32++;
-        idata64+=2;
-        fdata=3.14*(++cnt);
-        //positional attribute, 0 is the first output attribute of cu0
-        chaos_crest_update(handle,cu0,0,&idata32);
-	
-        chaos_crest_update(handle,cu0,1,(void*)&idata64);
-        chaos_crest_update(handle,cu0,2,&fdata);
-	//        sprintf(sdata,"test stringa %d",idata32);
-	//        chaos_crest_update(handle,cu0,3,sdata);
-        idata32++;
-        idata64+=2;
-        fdata=3.14*cnt;
+      #ifdef MOTOROLA
+        data.addr = data.basaddr + 0x00f80000 + 6*4;
+        VmeRead(het_fd);
+        r6=data.datum;
+      #else
+        r6++;
+      #endif
+      chaos_crest_update(handle,cu0,0,&r6);
+
+      for(cnt=0;cnt<FIFO_SIZE;cnt++){
+      #ifdef MOTOROLA
+        data.addr = data.basaddr + 0x00000000;
+        data.datum = 0x0;
+        VmeRead(het_fd);
+        fifo[cnt]=data.datum;
+      #else
+        fifo[cnt]=cnt;
+
+      #endif
+      }
+      
+      chaos_crest_update(handle,cu0,1,fifo);
+
         if((ret=chaos_crest_push(handle,cu0))!=0){
 	        printf("## error pushing ret:%d\n",ret);
           return ret;
         }
+      
     }
     chaos_crest_close(handle);
     return (0);
-  /* 
-     adm = 0x9  : A32 
-           0x39 : A24
-           0x29 : A16    
-  */
- 
-  //vme_ptri = (unsigned int *) ((long)org_ptr + (address&0xffff));  /* D32 */
-  //vme_ptrs = (unsigned short*)((long)org_ptr + (address&0xffff));  /* D16 */
-  //vme_ptrc = (unsigned char*) ((unsigned int)org_ptr + ((address)&0xffff));  /* D8 */
- /*
-  switch (setvar) {
-  case 0:
-    switch (setacc) {
-    case 1:
-      printf("leggo 8 bit\n");
-      for(ii=0;ii<number_of_words;ii++){
-	Vme_D08READ(org_ptr, vme_ptrc, readchar);
-	printf("Address %8x Data %8x \n",address,readchar);
-      }
-      break;
-    case 2:
-      printf("leggo 16 bit\n");
-      for(ii=0;ii<number_of_words;ii++){
-	Vme_D16READ(org_ptr, vme_ptrs, readword);
-	printf("Address %8x Data %8x \n",address,readword);
-      }
-      break;
-    case 3:
-      printf("leggo 32 bit\n");
-      for(ii=0;ii<number_of_words;ii++){
-	Vme_D32READ(org_ptr, vme_ptri, readint);
-	printf("Address %8x Data[%d] %8x : ",address,ii,readint);
-        PrintEvent_1290A(readint);
-      }
-    }
-    break;
-  case 1:
-    switch (setacc) {
-    case 1:
-      printf("scrivo 8 bit\n");
-      for(ii=0;ii<number_of_words;ii++){
-	Vme_D08WRITE(org_ptr, vme_ptrc, datachar);
-      }
-      break;
-    case 2:
-      printf("scrivo 16 bit\n");
-      for(ii=0;ii<number_of_words;ii++){
-	Vme_D16WRITE(org_ptr, vme_ptrs, datashort);
-      }
-      break;
-    case 3:
-      printf("scrivo 32 bit\n");
-      for(ii=0;ii<number_of_words;ii++){
-	Vme_D32WRITE(org_ptr, vme_ptri, dataint);
-        vme_ptri += 4;
-        address += 4;
-        dataint += 1;
-      }
-      break;
-    }
-  }
-  */
+  
  #ifdef MOTOROLA
-  VmeCloseChannel(het_fd);
+ VmeEnd(het_fd);
 #endif
 return 0;
 }
