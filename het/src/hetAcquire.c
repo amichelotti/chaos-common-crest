@@ -16,10 +16,11 @@ Usage: %s \
 #include <sys/ioctl.h>
 #include <string.h>
 #ifdef MOTOROLA
-#include "Vme.h"
+#include "vmelib.h"
+//#include <vmedrv.h> 
+
 #include "Data.h" 
 
-#include <vmedrv.h>
 #endif
 #include <sys/mman.h>
 
@@ -32,6 +33,14 @@ static  unsigned int pno1,pno2;
 static  unsigned short *vme_ptrs,*vme_ptrs1;
 static  unsigned char *vme_ptrc,*vme_ptrc1;
 void MyExceptionHandler(int);
+static unsigned endian_swap(unsigned int x)
+{
+return
+(x>>24) |
+((x>>8) & 0x0000ff00) |
+((x<<8) & 0x00ff0000) |
+(x<<24);
+}
  //(TYPE_VECTOR|TYPE_INT32)
 #define FIFO_SIZE 1024
 DEFINE_CU_DATASET(het_cu)
@@ -48,8 +57,9 @@ main(int argc,char *argv[]) {
   char cuname[64];
   int cnt=0,ret=0;
   chaos_crest_handle_t handle;
+  int het_fd;
   uint32_t cu0;
-  int32_t fifo[FIFO_SIZE];
+  uint32_t fifo[FIFO_SIZE];
 
    
   unsigned int address;
@@ -92,6 +102,7 @@ main(int argc,char *argv[]) {
   printf("cuname = %s \n",cuname);
   printf("HET VME ADDRESS = %08x \n",address);
  #ifdef MOTOROLA
+ #warning "HW ACCESS ENABLED"
    VmeInit(&het_fd);
    SetDefaults();
   data.basaddr = 0x01000000; 
@@ -129,9 +140,10 @@ main(int argc,char *argv[]) {
       #ifdef MOTOROLA
         data.addr = data.basaddr + 0x00f80000 + 6*4;
         VmeRead(het_fd);
-        r6=data.datum;
+        r6=endian_swap(data.datum);
       #else
         r6++;
+
       #endif
       chaos_crest_update(handle,cu0,0,&r6);
 
@@ -140,9 +152,9 @@ main(int argc,char *argv[]) {
         data.addr = data.basaddr + 0x00000000;
         data.datum = 0x0;
         VmeRead(het_fd);
-        fifo[cnt]=data.datum;
+        fifo[cnt]=endian_swap(data.datum);
       #else
-        fifo[cnt]=cnt;
+        fifo[cnt]=endian_swap((cnt*(r6&0x3)));
 
       #endif
       }

@@ -29,7 +29,7 @@
 
 #define MAXDIGITS 16
 #define MAXBUFFER 8192
-#define CREST_DEBUG
+//#define CREST_DEBUG
 #ifdef CREST_DEBUG
 #define DPRINT(x, ARGS...) printf(x, ##ARGS)
 
@@ -126,7 +126,7 @@ static int http_post(chaos_crest_handle_t h, const char *api, const char *trx_bu
   char s_url[256];
   snprintf(s_url, sizeof(s_url), "%s%s", p->wan_url, api);
   s_exit_flag = 0;
-  printf("POSTING:%s\n",trx_buffer);
+  DPRINT("POSTING:%s\n",trx_buffer);
   nc = mg_connect_http(&p->mgr, ev_handler, s_url, "Content-Type:application/json\r\nConnection:keep-alive\r\n", trx_buffer);
   while (s_exit_flag == 0)
   {
@@ -214,6 +214,7 @@ static const char *typeNumberToString(int type)
   }
   return "";
 }
+*/
 static const char *typeToString(int type)
 {
   if (type == TYPE_INT32)
@@ -239,7 +240,7 @@ static const char *typeToString(int type)
   }
   return "";
 }
-*/
+
 static const char *typeToFormat(int type)
 {
   if (type == TYPE_INT32)
