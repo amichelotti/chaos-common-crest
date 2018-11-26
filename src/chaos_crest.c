@@ -186,7 +186,7 @@ int chaos_crest_json_push(chaos_crest_handle_t h, const char *cu_uid, const char
   DPRINT("##json insert failed to:\"%s\" ret:%d,server answer:'%s'\n", url, ret, buffer_rx);
   return ret;
 }
-
+/*
 static const char *typeNumberToString(int type)
 {
   static char buf[256];
@@ -239,7 +239,7 @@ static const char *typeToString(int type)
   }
   return "";
 }
-
+*/
 static const char *typeToFormat(int type)
 {
   if (type == TYPE_INT32)
@@ -248,31 +248,34 @@ static const char *typeToFormat(int type)
   }
   else if (type == TYPE_INT64)
   {
-    return "{ \"$numberLong\" : \"%lld\" }";
+    return "{\"$numberLong\":\"%lld\"}";
   }
   else if (type == TYPE_DOUBLE)
   {
-    return "{ \"$numberDouble\": \"%lf\" }";
+    return "{\"$numberDouble\":\"%lf\"}";
   }
   else if (type == TYPE_STRING)
   {
-    return "%s";
+    return "\"%s\"";
   }
   else if (type == TYPE_BINARY)
   {
-    return "{\"$binary\":{\"base64\":\"%s\"}}";
+    return "{\"$binary\":{\"base64\":\"%s\",\"subType\":\"00\"}}}";
   }
   else if ((type & TYPE_INT32) && (type & TYPE_VECTOR))
   {
-    return "{\"$binary\":{\"base64\":\"%s\",\"subType\":84}}";
+    return "{\"$binary\":{\"base64\":\"%s\",\"subType\":\"84\"}}";
   }
   else if ((type & TYPE_DOUBLE) && (type & TYPE_VECTOR))
   {
-    return "{\"$binary\":{\"base64\":\"%s\",\"subType\":86}}";
+    return "{\"$binary\":{\"base64\":\"%s\",\"subType\":\"86\"}}";
   }
   else if ((type & TYPE_INT64) && (type & TYPE_VECTOR))
   {
-    return "{\"$binary\":{\"base64\":\"%s\",\"subType\":84}}";
+    return "{\"$binary\":{\"base64\":\"%s\",\"subType\":\"85\"}}";
+  } else if ((type & TYPE_INT16) && (type & TYPE_VECTOR))
+  {
+    return "{\"$binary\":{\"base64\":\"%s\",\"subType\":\"83\"}}";
   }
   else
   {
