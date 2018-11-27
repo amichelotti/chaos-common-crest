@@ -7,7 +7,7 @@
 
 #ifndef B64_H
 #define B64_H 1
-
+#include <stddef.h>
 /**
  *  Memory allocation functions to use. You can define b64_malloc and
  * b64_realloc to custom functions if you want.
