@@ -4,9 +4,10 @@
  * @date 26/2/2015
  * Simple apis to access chaos using http rest
  */
+ #include <stdlib.h>
 #include "b64.h"
 #include "chaos_crest.h"
-#include <stdlib.h>
+
 #include <signal.h>
 
 #include <sys/types.h>          
