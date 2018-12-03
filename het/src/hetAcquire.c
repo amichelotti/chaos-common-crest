@@ -16,10 +16,11 @@ Usage: %s \
 #include <sys/ioctl.h>
 #include <string.h>
 #ifdef MOTOROLA
-#include "vmelib.h"
-//#include <vmedrv.h> 
+//#include "vmelib.h"
+#define R6_OFF (0x00f80000 + 6*4)
+#include <Vme.h> 
 
-#include "Data.h" 
+//#include "Data.h" 
 
 #endif
 #include <sys/mman.h>
@@ -48,7 +49,7 @@ DEFINE_ATTRIBUTE("SR6","SR6 REGISTER",DIR_OUTPUT,TYPE_INT32,sizeof(int32_t))
 //DEFINE_ATTRIBUTE("SR7","SR7 REGISTER",DIR_OUTPUT,TYPE_INT32,sizeof(int32_t))
 //DEFINE_ATTRIBUTE("SR_STRING","SR7 REGISTER",DIR_OUTPUT,TYPE_STRING,10)
 
-DEFINE_ATTRIBUTE("FIFO","HET Fifo",DIR_OUTPUT,(TYPE_INT32|TYPE_VECTOR),FIFO_SIZE*sizeof(int32_t))
+DEFINE_ATTRIBUTE("FIFO","HET Fifo",DIR_OUTPUT,(TYPE_INT32|TYPE_VECTOR),FIFO_SIZE)
 //DEFINE_ATTRIBUTE("channel3_stringa","4 channel",DIR_OUTPUT,TYPE_STRING,128)
 END_CU_DATASET;        
 
@@ -60,7 +61,7 @@ main(int argc,char *argv[]) {
   int het_fd;
   uint32_t cu0;
   uint32_t fifo[FIFO_SIZE];
-
+  uint32_t readint;
    
   unsigned int address;
   int r6=0;
@@ -103,17 +104,19 @@ main(int argc,char *argv[]) {
   printf("HET VME ADDRESS = %08x \n",address);
  #ifdef MOTOROLA
  #warning "HW ACCESS ENABLED"
-   VmeInit(&het_fd);
+  /* 
+  VmeInit(&het_fd);
    SetDefaults();
   data.basaddr = 0x01000000; 
   data.am = VME_A32;            
-  data.dtsize = VME_D32; 
-  /*
+  data.dtsize = VME_D32;
+  */ 
+  
   het_fd = VmeOpenChannel("het", "het");
   VmeSetExceptionHandling(Vme_EXCEPTION_EXIT);
   VmeSetProperty(het_fd, Vme_SET_DTYPE, 0);
   org_ptr =  (unsigned int *)VmeMapAddress(het_fd, 0xffff0000&address, 0x1000000, adm);
-  */
+
  #endif
  
   handle=chaos_crest_open(chaosserver);
@@ -138,23 +141,26 @@ main(int argc,char *argv[]) {
 
     while(1){
       #ifdef MOTOROLA
-        data.addr = data.basaddr + 0x00f80000 + 6*4;
-        VmeRead(het_fd);
-        r6=endian_swap(data.datum);
+       VmeRead  (het_fd,R6_OFF, &readint, sizeof(readint));
+       r6=endian_swap(readint);
       #else
         r6++;
-
       #endif
       chaos_crest_update(handle,cu0,0,&r6);
 
       for(cnt=0;cnt<FIFO_SIZE;cnt++){
       #ifdef MOTOROLA
-        data.addr = data.basaddr + 0x00000000;
-        data.datum = 0x0;
-        VmeRead(het_fd);
-        fifo[cnt]=endian_swap(data.datum);
+       // data.addr = data.basaddr + 0x00000000;
+       // data.datum = 0x0;
+        {
+         
+          VmeRead  (het_fd, 0, &readint, sizeof(readint));
+          //Vme_D32READ(org_ptr, vme_ptri, readint);
+          fifo[cnt]=endian_swap(readint);
+        }
       #else
-        fifo[cnt]=endian_swap((cnt*(r6&0x3)));
+        fifo[cnt]=endian_swap(((cnt+1)*(r6&0x3)) +1);
+        //fifo[cnt]=(cnt+1)*((r6&0x3) +1);
 
       #endif
       }

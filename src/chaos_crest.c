@@ -463,20 +463,27 @@ uint32_t chaos_crest_add_cu(chaos_crest_handle_t h, const char *name, chaos_ds_t
 
       if ((dsin[cnt].type == TYPE_BINARY) || (dsin[cnt].type & TYPE_VECTOR))
       {
+        p->cus[p->ncus].outds[cnt_out].size=dsin[cnt].size;
         dsin[cnt].alloc_size = dsin[cnt].size * 4;
-
         if ((dsin[cnt].type & TYPE_INT32) && (dsin[cnt].type & TYPE_VECTOR))
         {
           dsin[cnt].alloc_size = dsin[cnt].size * sizeof(int32_t) * 4;
+          p->cus[p->ncus].outds[cnt_out].size=dsin[cnt].size* sizeof(int32_t);
+
         }
         else if ((dsin[cnt].type & TYPE_DOUBLE) && (dsin[cnt].type & TYPE_VECTOR))
         {
           dsin[cnt].alloc_size = dsin[cnt].size * sizeof(double) * 4;
+          p->cus[p->ncus].outds[cnt_out].size=dsin[cnt].size* sizeof(double);
+
         }
         else if ((dsin[cnt].type & TYPE_INT64) && (dsin[cnt].type & TYPE_VECTOR))
         {
           dsin[cnt].alloc_size = dsin[cnt].size * sizeof(int64_t) * 4;
+          p->cus[p->ncus].outds[cnt_out].size=dsin[cnt].size* sizeof(int64_t);
+
         }
+
       }
 
         p->cus[p->ncus].outds[cnt_out].alloc_size=dsin[cnt].alloc_size;
