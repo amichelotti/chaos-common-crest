@@ -56,6 +56,7 @@ typedef struct _cu
   int nin;
   ds_t *outds;
   int nout;
+  int maxbufsize;
 } cu_t;
 
 typedef struct _chaos_crest_handle
@@ -416,6 +417,7 @@ uint32_t chaos_crest_add_cu(chaos_crest_handle_t h, const char *name, chaos_ds_t
   p->cus[p->ncus].name = strdup(name);
   p->cus[p->ncus].inds = 0;
   p->cus[p->ncus].outds = 0;
+  p->cus[p->ncus].maxbufsize = 0;
   for (cnt = 0; cnt < dsitems; cnt++)
   {
     ndsin += ((dsin[cnt].dir == DIR_INPUT) || (dsin[cnt].dir == DIR_IO)) ? 1 : 0;
@@ -484,9 +486,9 @@ uint32_t chaos_crest_add_cu(chaos_crest_handle_t h, const char *name, chaos_ds_t
         }
 
       }
-
         p->cus[p->ncus].outds[cnt_out].alloc_size=dsin[cnt].alloc_size;
         DPRINT("\"%s\" OUT allocating %d bytes size: %d 0x%x\n",p->cus[p->ncus].outds[cnt_out].name, p->cus[p->ncus].outds[cnt_out].alloc_size,dsin[cnt].size,dsin[cnt].type);
+       // p->cus[p->ncus].maxbufsize+= p->cus[p->ncus].outds[cnt_out].alloc_size;
 
         p->cus[p->ncus].outds[cnt_out].data = calloc(1, dsin[cnt].alloc_size);
         if ((p->cus[p->ncus].outds[cnt_out].data == NULL) || (p->cus[p->ncus].outds[cnt_out].format == NULL))
@@ -531,10 +533,18 @@ uint32_t chaos_crest_add_cu(chaos_crest_handle_t h, const char *name, chaos_ds_t
       char *bsa = b64_encode((char *)data, p->size);
       if (bsa)
       {
+        int diff=strlen(bsa)-p->alloc_size;
+        if(diff>0){
+          diff+=strlen(p->format);
+          p->alloc_size+=diff;
+          p->data=realloc(p->data,diff);
+          
+        }
         snprintf(p->data, p->alloc_size, p->format, bsa);
         free(bsa);
       }
     }
+    
     DPRINT("updating [%d]\"%s\" format \"%s\" size:%d allocated:%d type:0x%x (@0x%x)\n", attr, p->data, p->format, p->size, p->alloc_size,p->type, data);
     return 0;
   }
@@ -707,11 +717,11 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
 }
 */
 
-  static int push_cu_int(chaos_crest_handle_t h, uint32_t cu_uid, char *buffer, int size, int mode)
+  static int push_cu_int(chaos_crest_handle_t h, uint32_t cu_uid, int mode)
   {
     _chaos_crest_handle_t *p = (_chaos_crest_handle_t *)h;
     cu_t *cu;
-    int cnt;
+    int cnt,size=0;
     char *pnt;
     char url[256];
     int err;
@@ -725,6 +735,11 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
 
     cu = p->cus + (cu_uid - 1);
     ts = getEpoch();
+    for (cnt = 0; cnt < cu->nout; cnt++){
+      ds_t * attr=cu->outds + cnt;
+      size+= attr->alloc_size;
+    }
+    char buffer[size];
     snprintf(buffer, size, "{\"ndk_uid\":\"%s\",\"dpck_ds_type\":%d,\"dpck_seq_id\":%llu,\"dpck_ats\":%llu%s", cu->name, 0, p->npush, getEpoch(), cu->nout > 0 ? "," : "");
     for (cnt = 0; cnt < cu->nout; cnt++)
     {
@@ -799,13 +814,13 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
         snprintf(p->data, p->alloc_size, p->format, "");
       }
     }
-      return push_cu_int(h, cu_uid, buffer, size, 0);
+      return push_cu_int(h, cu_uid, 0);
     
   }
 
-    static int push_cu(chaos_crest_handle_t h, uint32_t cu_uid, char *buffer, int size)
+    static int push_cu(chaos_crest_handle_t h, uint32_t cu_uid)
     {
-      return push_cu_int(h, cu_uid, buffer, size, 1);
+      return push_cu_int(h, cu_uid, 1);
     }
     int chaos_crest_register(chaos_crest_handle_t h, uint32_t cu_cuid)
     {
@@ -832,13 +847,13 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
     {
       _chaos_crest_handle_t *p = (_chaos_crest_handle_t *)h;
       int ret;
-      char buffer[MAXBUFFER];
+     // char buffer[MAXBUFFER];
       if (cu_uid == 0)
       {
         int cnt;
         for (cnt = 0; cnt < p->ncus; cnt++)
         {
-          if ((ret = push_cu(h, cnt + 1, buffer, sizeof(buffer))) != 0)
+          if ((ret = push_cu(h, cnt + 1)) != 0)
           {
             return ret;
           }
@@ -846,7 +861,7 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
         return 0;
       }
 
-      return push_cu(h, cu_uid, buffer, sizeof(buffer));
+      return push_cu(h, cu_uid);
     }
 
     float chaos_crest_push_time(chaos_crest_handle_t h, uint32_t * max, uint32_t * min)

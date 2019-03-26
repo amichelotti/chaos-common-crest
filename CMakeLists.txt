@@ -11,7 +11,7 @@ SET(crest_src src/chaos_crest.c src/http_lib.c src/mongoose.c src/encode.c)
 SET(crest_test_src test/crest_cu_test.c)
 SET(crest_test_ui_src test/chaos_crest_ui_test.c)
 ADD_EXECUTABLE(crest_test ${crest_test_src})
-ADD_EXECUTABLE(het_acquire het/src/hetAcquire.c)
+ADD_EXECUTABLE(het_acquire het/src/hetAcquire.c het/src/hetDriver.c)
 
 ADD_EXECUTABLE(chaos_crest_ui_test ${crest_test_ui_src})
 IF(BUILD_FORCE_STATIC)
