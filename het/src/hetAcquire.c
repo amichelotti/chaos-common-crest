@@ -22,7 +22,7 @@ usage: %s \
 #define VME_MAP_SIZE 1024 * 1024 * 32
 #define VME_MAP_AM 0x9
 //#define DMABUFFERSIZE 1024 * 60 //0x2000000
-#define DMABUFFERSIZE 1024 * 4 //0x2000000
+#define DMABUFFERSIZE 0x8000 //0x2000000
 #include "hetDriver.h"
 #include <stdlib.h>
 #ifdef MOTOROLA
@@ -39,7 +39,7 @@ usage: %s \
 #define Vme_D32READ(x, y, z)
 #define VmeDmaRead(ciddma, offset, evtbuf, sizedma) 0
 #define VmeCloseChannel(ciddma) ;
-
+#define PollingVme(s) 3
 #endif
 
 #include <sys/mman.h>
@@ -230,7 +230,7 @@ int main(int argc, char *argv[])
   printf("Fine del map address %x\n", vme_base);
 
 #endif
-  evtbuf = (unsigned int *)malloc(DMABUFFERSIZE*4);
+  evtbuf = (unsigned int *)malloc(DMABUFFERSIZE);
   for (cnt = 0; cnt < DMABUFFERSIZE / 4; cnt++)
   {
     evtbuf[cnt] = 0xdeaddead;
@@ -335,8 +335,12 @@ int main(int argc, char *argv[])
       {
         for (cnt = 0; cnt < DMABUFFERSIZE / 4; cnt++)
         {
+#ifdef MOTOROLA
           fifo[cnt] = endian_swap(evtbuf[cnt]);
+#else
+          fifo[cnt] = evtbuf[cnt];
 
+#endif
           /*if(evtbuf[cnt] == 0xdeaddead) {
             kprint++; 
             if(kprint == 1){ 

@@ -331,7 +331,7 @@ chaos_crest_handle_t chaos_crest_open(const char *chaoswan_url)
   opts = opts & (~O_NONBLOCK);
 
   fcntl(sock, F_SETFL, opts);
-  h = (_chaos_crest_handle_t *)malloc(sizeof(_chaos_crest_handle_t));
+  h = (_chaos_crest_handle_t *)calloc(1,sizeof(_chaos_crest_handle_t));
   h->wan_url = strdup(chaoswan_url);
   h->sock_fd = sock;
   h->ncus = 0;
@@ -367,7 +367,7 @@ chaos_crest_handle_t chaos_crest_open(const char *chaoswan_url)
   DPRINT("* open socket %d \"%s\"->\"%s\":\"%d\"\n", h->sock_fd, h->hostname, hostname, port);
 #else
   _chaos_crest_handle_t *h;
-  h = (_chaos_crest_handle_t *)malloc(sizeof(_chaos_crest_handle_t));
+  h = (_chaos_crest_handle_t *)calloc(1,sizeof(_chaos_crest_handle_t));
   h->wan_url = strdup(chaoswan_url);
   mg_mgr_init(&h->mgr, NULL);
 #endif
