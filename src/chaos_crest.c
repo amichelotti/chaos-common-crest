@@ -9,6 +9,7 @@
 #include "chaos_crest.h"
 
 #include <signal.h>
+#include <inttypes.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -30,7 +31,7 @@
 
 #define MAXDIGITS 16
 #define MAXBUFFER 8192
-//#define CREST_DEBUG
+#define CREST_DEBUG
 #ifdef CREST_DEBUG
 #define DPRINT(x, ARGS...) printf(x, ##ARGS)
 
@@ -287,7 +288,7 @@ static const char *typeToFormat(int type)
   }
   return "";
 }
-static unsigned long long getEpoch()
+static uint64_t getEpoch()
 {
   struct timeval mytime;
   uint64_t ret;
@@ -465,22 +466,22 @@ uint32_t chaos_crest_add_cu(chaos_crest_handle_t h, const char *name, chaos_ds_t
       if ((dsin[cnt].type == TYPE_BINARY) || (dsin[cnt].type & TYPE_VECTOR))
       {
         p->cus[p->ncus].outds[cnt_out].size=dsin[cnt].size;
-        dsin[cnt].alloc_size = dsin[cnt].size * 4;
+        dsin[cnt].alloc_size = dsin[cnt].size * 2;
         if ((dsin[cnt].type & TYPE_INT32) && (dsin[cnt].type & TYPE_VECTOR))
         {
-          dsin[cnt].alloc_size = dsin[cnt].size * sizeof(int32_t) * 4;
+          dsin[cnt].alloc_size = dsin[cnt].size * sizeof(int32_t) * 2;
           p->cus[p->ncus].outds[cnt_out].size=dsin[cnt].size* sizeof(int32_t);
 
         }
         else if ((dsin[cnt].type & TYPE_DOUBLE) && (dsin[cnt].type & TYPE_VECTOR))
         {
-          dsin[cnt].alloc_size = dsin[cnt].size * sizeof(double) * 4;
+          dsin[cnt].alloc_size = dsin[cnt].size * sizeof(double) * 2;
           p->cus[p->ncus].outds[cnt_out].size=dsin[cnt].size* sizeof(double);
 
         }
         else if ((dsin[cnt].type & TYPE_INT64) && (dsin[cnt].type & TYPE_VECTOR))
         {
-          dsin[cnt].alloc_size = dsin[cnt].size * sizeof(int64_t) * 4;
+          dsin[cnt].alloc_size = dsin[cnt].size * sizeof(int64_t) * 2;
           p->cus[p->ncus].outds[cnt_out].size=dsin[cnt].size* sizeof(int64_t);
 
         }
@@ -726,7 +727,8 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
     char url[256];
     int err;
     int csize;
-    unsigned long long ts;
+    uint64_t ts;
+    char*buffer;
     if ((cu_uid > p->ncus) || (cu_uid <= 0))
     {
       printf("## bad Id %d", cu_uid);
@@ -739,8 +741,8 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
       ds_t * attr=cu->outds + cnt;
       size+= attr->alloc_size;
     }
-    char buffer[size];
-    snprintf(buffer, size, "{\"ndk_uid\":\"%s\",\"dpck_ds_type\":%d,\"dpck_seq_id\":%llu,\"dpck_ats\":%llu%s", cu->name, 0, p->npush, getEpoch(), cu->nout > 0 ? "," : "");
+    buffer=(char*)malloc(size);
+    snprintf(buffer, size, "{\"ndk_uid\":\"%s\",\"dpck_ds_type\":%d,\"dpck_seq_id\":%" PRIu64",\"dpck_ats\":%" PRIu64"%s", cu->name, 0, p->npush, ts, cu->nout > 0 ? "," : "");
     for (cnt = 0; cnt < cu->nout; cnt++)
     {
       csize = strlen(buffer);
@@ -766,12 +768,14 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
       p->max_push = (t > p->max_push) ? t : p->max_push;
       p->min_push = (t < p->min_push) && (t > 0) ? t : p->min_push;
       p->npush++;
+      free(buffer);
       return 0;
     }
     else
     {
       printf("## post ret: %d to:\"%s\" of:\"%s\" result:\"%s\"", err, url, buffer, buffer_rx);
     }
+    free(buffer);
 
     return -9; // registration failure
   }

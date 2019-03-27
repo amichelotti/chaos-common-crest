@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
   {
     evtbuf[cnt] = 0xdeaddead;
   }
-  for (cnt = 0; cnt < DMABUFFERSIZE / 4; cnt++)
+ /* for (cnt = 0; cnt < DMABUFFERSIZE / 4; cnt++)
   {
     flushLine2(&evtbuf[cnt]);
   }
@@ -243,7 +243,7 @@ int main(int argc, char *argv[])
   {
     cacheinv2(&evtbuf[cnt]);
   }
-
+*/
   ResetMemoria(vme_base, fplog);
   StatoCtrlReg(vme_base,0, fplog);
   if (testmode)
@@ -311,7 +311,8 @@ int main(int argc, char *argv[])
     }
     //  VmeRead(het_fd, R6_OFF, &readint, sizeof(readint));
 
-    status = PollingVme(vme_base);
+   // status = PollingVme(vme_base);
+   status = 2;
     //printf("status = %d \n",status);
     chaos_crest_update(handle, cu0, 0, &status);
 
@@ -319,7 +320,8 @@ int main(int argc, char *argv[])
     {
 
       offset = 0x0;
-      ret = VmeDmaRead(ciddma, offset, (char *)evtbuf, DMABUFFERSIZE); // deve leggere un quarto della fifo
+     // ret = VmeDmaRead(ciddma, offset, (char *)evtbuf, DMABUFFERSIZE); // deve leggere un quarto della fifo
+     ret = 0;
       if (ret < 0)
       {
         printf("Errore VmeDmaRead \n");
