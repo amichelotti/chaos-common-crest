@@ -132,7 +132,7 @@ void AbilitazioneTriggerAut(unsigned int* base_address){
   
   usleep(200);
 }
-int PollingVme(unsigned int* base_address) {
+int PollingVme(unsigned int* base_address,unsigned int* reg) {
   int retry = 0;
   int status = 90;
   unsigned int result = 90;
@@ -144,11 +144,13 @@ int PollingVme(unsigned int* base_address) {
   vme_ptr = (unsigned int*)((unsigned int)base_address + offset);
   
   do {
-    Vme_D32READ(base_address,vme_ptr,result);
+    result=READ32(base_address,HET_REG_OFF(6));
     if (result < 1) printf("Error reading Vme\n");
     retry++;
   } while ( (retry <= 10) && (result < 1) );
-  
+  if(reg){
+    *reg=result;
+  }
   if (retry > 10){
     status = 99;
     return(status);
@@ -186,16 +188,13 @@ int PollingVme(unsigned int* base_address) {
 }
 void StatoCtrlReg(unsigned int* base_address, unsigned int*regs,FILE *fplog) {
   int numReg;
-  unsigned int *vme_ptr;
-  unsigned int offset, result;
+  unsigned int  result;
 
   for(numReg=0;numReg<7;numReg++){
-    offset =  0x00f80000 + numReg*4;;
-    vme_ptr = (unsigned int*)((long)base_address + offset);
-    Vme_D32READ(base_address,vme_ptr,result);
+    result=READ32(base_address,HET_REG_OFF(numReg));
     if(fplog){
-      printf("Valore letto su SR0 = %08x \n",result);
-      fprintf(fplog,"Valore letto su SR1 = %08x \n",result);
+      printf("Valore letto su SR%d = %08x \n",numReg,result);
+      fprintf(fplog,"Valore letto su SR%d = %08x \n",numReg,result);
     }
     if(regs){
       regs[numReg]=result;
@@ -212,48 +211,36 @@ void InitTDCV5(unsigned int *base_address, FILE *fplog) {
   fprintf(fplog,"Init TDC \n");
 
 //Leggo lo stato di slave reg 0
-  numReg = 0;
-  offset =  0x00f80000 + numReg*4;;
-  vme_ptr = (unsigned int*)((long)base_address + offset);
-  Vme_D32READ(base_address,vme_ptr,result);
+  result=READ32(base_address,HET_REG_OFF(0));
   if ( result != 0xFFFFFFFF ) { // tutti i canali abilitati
-    result = 0xFFFFFFFF;
-    Vme_D32WRITE(base_address,vme_ptr,result);
+    WRITE32(base_address,HET_REG_OFF(0),0xFFFFFFFF);
   }
 
 //Leggo lo stato di slave reg 1
-  numReg = 1;
-  offset =  0x00f80000 + numReg*4;;
-  vme_ptr = (unsigned int*)((long)base_address + offset);
-  Vme_D32READ(base_address,vme_ptr,result);
+  
+  result=READ32(base_address,HET_REG_OFF(1));
+
   if ( result != 0xC0100000 ) {
-    result = 0x80100000;
-    Vme_D32WRITE(base_address,vme_ptr,result);
+    WRITE32(base_address,HET_REG_OFF(1),0x80100000);
     sleep(2);
-    result = 0xC0100000;
-    Vme_D32WRITE(base_address,vme_ptr,result);
+    WRITE32(base_address,HET_REG_OFF(1),0xC0100000);
   }
 
 //Leggo lo stato di slave reg 3
-  numReg = 3;  
-  offset =  0x00f80000 + numReg*4;;
-  vme_ptr = (unsigned int*)((long)base_address + offset);
-  Vme_D32READ(base_address,vme_ptr,result);
+    result=READ32(base_address,HET_REG_OFF(3));
+
   //if ( result != 0x00030000 ) {
   //  result = 0x00030000;
   if ( result != 0x00090000 ) {
-    result = 0x00090000;
-    Vme_D32WRITE(base_address,vme_ptr,result);
+    WRITE32(base_address,HET_REG_OFF(1),0x00090000);
   }
 
 //Leggo lo stato di slave reg 5
-  numReg = 5;
-  offset =  0x00f80000 + numReg*4;;
-  vme_ptr = (unsigned int*)((long)base_address + offset);
-  Vme_D32READ(base_address,vme_ptr,result);
+  result=READ32(base_address,HET_REG_OFF(5));
+
   if ( result != 0x0000307a ) {
-    result = 0x0000307a;
-    Vme_D32WRITE(base_address,vme_ptr,result);
+    WRITE32(base_address,HET_REG_OFF(5),0x0000307a);
+
   }
   printf("Fine TDC \n");
   fprintf(fplog,"Fine Init TDC \n");

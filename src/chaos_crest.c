@@ -31,7 +31,7 @@
 
 #define MAXDIGITS 16
 #define MAXBUFFER 8192
-#define CREST_DEBUG
+//#define CREST_DEBUG
 #ifdef CREST_DEBUG
 #define DPRINT(x, ARGS...) printf(x, ##ARGS)
 
@@ -288,12 +288,12 @@ static const char *typeToFormat(int type)
   }
   return "";
 }
-static uint64_t getEpoch()
+static unsigned long long getEpoch()
 {
   struct timeval mytime;
-  uint64_t ret;
+  unsigned long long ret;
   gettimeofday(&mytime, NULL);
-  ret = mytime.tv_sec * 1000 + (mytime.tv_usec / 1000);
+  ret = (unsigned long long)mytime.tv_sec * 1000 + ((unsigned long long)mytime.tv_usec / 1000);
 
   return ret;
 }
@@ -742,7 +742,7 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
       size+= attr->alloc_size;
     }
     buffer=(char*)malloc(size);
-    snprintf(buffer, size, "{\"ndk_uid\":\"%s\",\"dpck_ds_type\":%d,\"dpck_seq_id\":%" PRIu64",\"dpck_ats\":%" PRIu64"%s", cu->name, 0, p->npush, ts, cu->nout > 0 ? "," : "");
+    snprintf(buffer, size, "{\"ndk_uid\":\"%s\",\"dpck_ds_type\":%d,\"dpck_seq_id\":%llu,\"dpck_ats\":%llu%s", cu->name, 0, p->npush, ts, cu->nout > 0 ? "," : "");
     for (cnt = 0; cnt < cu->nout; cnt++)
     {
       csize = strlen(buffer);
