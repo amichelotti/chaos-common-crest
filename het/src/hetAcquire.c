@@ -1,3 +1,4 @@
+#define MOTOROLA
 /**
  * Acquisition through !CHAOS
  * Andrea Michelotti November 2018
@@ -27,7 +28,10 @@ usage: %s \
 #define VME_MAP_SIZE 1024 * 1024 * 32
 #define VME_MAP_AM 0x9
 //#define DMABUFFERSIZE 1024 * 60 //0x2000000
-#define DMABUFFERSIZE 0x8000 //0x2000000
+#define FULLFIFOSIZE (256) * 1024 //256K 0x40000
+#define HOWTOREAD 3               // 3=1/4 2=1/2 1=3/4 0 tutta.
+
+#define DMABUFFERSIZE (FULLFIFOSIZE * (4 - HOWTOREAD) / 4)
 #include "hetDriver.h"
 #include <stdlib.h>
 #ifdef MOTOROLA
@@ -44,7 +48,7 @@ usage: %s \
 #define Vme_D32READ(x, y, z)
 #define VmeDmaRead(ciddma, offset, evtbuf, sizedma) 0
 #define VmeCloseChannel(ciddma) ;
-#define PollingVme(s,r) 3
+#define PollingVme(s, r) 3
 #endif
 
 #include <sys/mman.h>
@@ -66,6 +70,8 @@ static unsigned endian_swap(unsigned int x)
 //#define FIFO_SIZE 1024
 DEFINE_CU_DATASET(het_cu)
 DEFINE_ATTRIBUTE("STATUS", "STATUS REGISTER", DIR_OUTPUT, TYPE_INT32, sizeof(int32_t))
+DEFINE_ATTRIBUTE("EVENTS", "Events Found", DIR_OUTPUT, TYPE_INT64, sizeof(int64_t))
+
 // DEFINE_ATTRIBUTE("SR7","SR7 REGISTER",DIR_OUTPUT,TYPE_INT32,sizeof(int32_t))
 // DEFINE_ATTRIBUTE("SR_STRING","SR7 REGISTER",DIR_OUTPUT,TYPE_STRING,10)
 
@@ -113,19 +119,27 @@ static int open_file_data(FILE **fpdata, FILE **fplog)
 
   return (ret);
 }
-
+enum
+{
+  SEARCH_HEADER,
+  HEADER1_FOUND,
+  HEADER2_FOUND,
+  DATA_FOUND,
+  FOOTER1_FOUND,
+  FOOTER2_FOUND
+};
 int main(int argc, char *argv[])
 {
   unsigned long vme_address;
   unsigned int offset, result, nread;
   int ciddma, cidvme;
   unsigned int *evtbuf, *vme_dma, *vme_base;
-  int cycles=3;
+  int cycles = 3;
   int testmode = 0;
-  int triggerDelay=0;
-  int fiducialOffset=0;
+  int triggerDelay = 0;
+  int fiducialOffset = 0;
 
-  uint32_t fifo[DMABUFFERSIZE/4];
+  uint32_t fifo[DMABUFFERSIZE / 4];
 
   unsigned int *vme_ptr;
   int status, sizedma;
@@ -134,13 +148,15 @@ int main(int argc, char *argv[])
 
   char chaosserver[64];
   char cuname[64];
+  int shm_state = SEARCH_HEADER;
   int cnt = 0, ret = 0;
   chaos_crest_handle_t handle;
   int het_fd;
   uint32_t cu0;
   uint32_t readint;
   struct timeval mytime;
-
+  uint64_t eventn = 0,t2=0;
+  int fifo_cnt=0;
   unsigned int address;
   unsigned int r6 = 0;
   /* unsigned long dataint,readint,databuf;*/
@@ -192,8 +208,9 @@ int main(int argc, char *argv[])
     }
     cnt++;
   }
-  if(cycles>9 || cycles<1) {
-    printf("## invalid cycles %d (1:9)\n",cycles);
+  if (cycles > 9 || cycles < 0)
+  {
+    printf("## invalid cycles %d (1:9)\n", cycles);
     return -1;
   }
   if (*chaosserver == 0)
@@ -213,35 +230,13 @@ int main(int argc, char *argv[])
     fflush(stdout);
     exit(-1);
   }
-  gettimeofday(&mytime,NULL);
-  printf("chaosserver = %s %llu ms \n", chaosserver,(unsigned long long)mytime.tv_sec*1000+((unsigned long long)mytime.tv_usec/1000));
+  gettimeofday(&mytime, NULL);
+  printf("chaosserver = %s %llu ms \n", chaosserver, (unsigned long long)mytime.tv_sec * 1000 + ((unsigned long long)mytime.tv_usec / 1000));
   printf("cuname = %s \n", cuname);
   printf("HET VME ADDRESS = %08x \n", address);
 #ifdef MOTOROLA
 #warning "HW ACCESS ENABLED"
-  /*
-  VmeInit(&het_fd);
-   SetDefaults();
-  data.basaddr = 0x01000000;
-  data.am = VME_A32;
-  data.dtsize = VME_D32;
- 
 
-
-     adm = 0x9  : A32 
-           0x39 : A24
-           0x29 : A16    
-  
-
-
- 
-
-  het_fd = VmeOpenChannel("het", "pio");
-  VmeSetExceptionHandling(Vme_EXCEPTION_EXIT);
-  VmeSetProperty(het_fd, Vme_SET_DTYPE, 0);
-  org_ptr = (unsigned int *)VmeMapAddress(het_fd, 0xffff0000 & address,
-                                          0x1000000, 9);
-*/
   /*
    * Init Vme
    */
@@ -263,7 +258,7 @@ int main(int argc, char *argv[])
   {
     evtbuf[cnt] = 0xdeaddead;
   }
- /* for (cnt = 0; cnt < DMABUFFERSIZE / 4; cnt++)
+  /* for (cnt = 0; cnt < DMABUFFERSIZE / 4; cnt++)
   {
     flushLine2(&evtbuf[cnt]);
   }
@@ -273,17 +268,21 @@ int main(int argc, char *argv[])
   }
 */
   ResetMemoria(vme_base, fplog);
-  StatoCtrlReg(vme_base,0, fplog);
+  StatoCtrlReg(vme_base, 0, fplog);
   if (testmode)
   {
     InitTDCV5(vme_base, fplog);
   }
   else
   {
-    InitTDCV5_KLOE(vme_base, fplog);
+    // enable all channels
+    WRITE32(vme_base, HET_REG_OFF(0), 0xFFFFFFFF);
+    WRITE32(vme_base, HET_REG_OFF(1), ENABLE_T1 | ENABLE_T2 | FIFO_NORMAL | FIFO_TRG_UKN);
+    WRITE32(vme_base, HET_REG_OFF(3), FIDUCIAL_TURN(cycles) | TRIGGER_DELAY(triggerDelay) | OFFSET_FIDUCIAL(fiducialOffset));
+    WRITE32(vme_base, HET_REG_OFF(5), T2_COUNTER(0) | SYNCR_INVERT);
   }
- // WRITE32(vme_base,HET_REG_OFF(3),(cycles<<16)|(fiducialOffset&0xFF)|((triggerDelay&0x3F)<<8));
-  StatoCtrlReg(vme_base, 0,fplog);
+  // WRITE32(vme_base,HET_REG_OFF(3),(cycles<<16)|(fiducialOffset&0xFF)|((triggerDelay&0x3F)<<8));
+  StatoCtrlReg(vme_base, 0, fplog);
 
   handle = chaos_crest_open(chaosserver);
   if (handle == NULL)
@@ -340,17 +339,17 @@ int main(int argc, char *argv[])
     }
     //  VmeRead(het_fd, R6_OFF, &readint, sizeof(readint));
 
-    status = PollingVme(vme_base,&r6);
-   //status = 2;
-    //printf("status = %d 0x%x\n",status,r6);
+    status = PollingVme(vme_base, &r6);
+    //status = 2;
     chaos_crest_update(handle, cu0, 0, &r6);
 
-    if (status <= 3)
+    if (status <= HOWTOREAD)
     {
+      printf("status = %d 0x%x T2 DONE:%d, NEXT:%d\n", status, r6, GET_T2_DONE(r6), GET_T2_NEXT(r6));
 
       offset = 0x0;
-     ret = VmeDmaRead(ciddma, offset, (char *)evtbuf, DMABUFFERSIZE); // deve leggere un quarto della fifo
-     //ret = 0;
+      ret = VmeDmaRead(ciddma, offset, (char *)evtbuf, DMABUFFERSIZE); // deve leggere un quarto della fifo
+                                                                       //ret = 0;
       if (ret < 0)
       {
         printf("Errore VmeDmaRead \n");
@@ -360,14 +359,62 @@ int main(int argc, char *argv[])
         StatoCtrlReg(vme_base, 0, fplog);
         //exit(-4);
         ResetMemoria(vme_base, fplog);
-        StatoCtrlReg(vme_base, 0,fplog);
+        StatoCtrlReg(vme_base, 0, fplog);
       }
       else
       {
-        for (cnt = 0; cnt < DMABUFFERSIZE / 4; cnt++)
+        shm_state = SEARCH_HEADER;
+        //for (cnt = (DMABUFFERSIZE / 4) - 1; cnt >= 0; cnt--)
+        for (cnt = 0,fifo_cnt=0; cnt <(DMABUFFERSIZE / 4); cnt++)
         {
+
 #ifdef MOTOROLA
-          fifo[cnt] = endian_swap(evtbuf[cnt]);
+
+          if (evtbuf[cnt] == 0xEFFFFFFF)
+          {
+            shm_state = HEADER1_FOUND;
+#ifdef DEBUG
+            fprintf(fplog, "[ev:%llu,pos:%d,origpos:%d] HEADER1  0x%x\n", eventn,fifo_cnt,cnt, evtbuf[cnt]);
+            fflush(fplog);
+#endif
+            continue;
+          }
+          if ((shm_state == HEADER1_FOUND) && ((evtbuf[cnt] & 0xFFFFF000) == 0xFD000000))
+          {
+            shm_state = HEADER2_FOUND;
+            t2=evtbuf[cnt] & 0xFFF;
+#ifdef DEBUG
+
+            fprintf(fplog, "==[ev:%llu,pos:%d,orig:%d] HEADER data=0x%x T2=%d==\n", eventn, fifo_cnt, cnt,evtbuf[cnt], evtbuf[cnt] & 0xFFF);
+            fflush(fplog);
+#endif
+            eventn++;
+            fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]);
+            continue;
+          }
+          if (((shm_state == HEADER2_FOUND) || (shm_state == DATA_FOUND)) && ((evtbuf[cnt] & 0x80000000) == 0x0))
+          {
+            shm_state = DATA_FOUND;
+ #ifdef DEBUG
+            fprintf(fplog, "[ev:%llu,pos:%d,orig:%d] DATA 0x%x\n", eventn, fifo_cnt, cnt,evtbuf[cnt]);
+            fflush(fplog);
+#endif
+            fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]);
+
+            continue;
+          }
+          if ((evtbuf[cnt] & 0xFFF00000) == 0xF7F00000)
+          {
+   #ifdef DEBUG
+     
+            fprintf(fplog, "[ev:%llu,pos:%d,orig:%d] END WORDS:%d\n", eventn, fifo_cnt, cnt,evtbuf[cnt]&0x7FFF);
+            fflush(fplog);
+#endif
+            fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]& 0xFFF00000|t2);
+
+            shm_state = SEARCH_HEADER;
+          }         
+         
 #else
           fifo[cnt] = evtbuf[cnt];
 
@@ -388,15 +435,15 @@ int main(int argc, char *argv[])
           evtbuf[cnt] = 0xdeaddead;
         }*/
         }
-
-        chaos_crest_update(handle, cu0, 1, fifo);
+        chaos_crest_update(handle, cu0, 1, &eventn);
+        chaos_crest_update(handle, cu0, 2, fifo);
       }
-      if ((ret = chaos_crest_push(handle, cu0)) != 0){
+      if ((ret = chaos_crest_push(handle, cu0)) != 0)
+      {
         printf("## error pushing ret:%d\n", ret);
         return ret;
       }
     }
-    
   }
   chaos_crest_close(handle);
   free(evtbuf);
@@ -407,7 +454,7 @@ int main(int argc, char *argv[])
   /*
    * Read last part of Memory with VME A32/D32
    */
-  status = PollingVme(vme_base,&r6);
+  status = PollingVme(vme_base, &r6);
   nread = 0;
   offset = 0x0;
   vme_ptr = (unsigned int *)((long)vme_base + offset);
@@ -431,7 +478,7 @@ int main(int argc, char *argv[])
         nread++;
       }
 
-      status = PollingVme(vme_base,NULL);
+      status = PollingVme(vme_base, NULL);
     } while (status != 5);
   }
   if (nread > 0)
@@ -450,7 +497,7 @@ int main(int argc, char *argv[])
   ResetMemoria(vme_base, fplog);
   printf("Fine Run \n");
   fprintf(fplog, "Fine Run \n");
-  StatoCtrlReg(vme_base, 0,fplog);
+  StatoCtrlReg(vme_base, 0, fplog);
   VmeCloseChannel(cidvme);
   VmeCloseChannel(ciddma);
   fflush(fpdata);

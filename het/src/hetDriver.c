@@ -195,6 +195,8 @@ void StatoCtrlReg(unsigned int* base_address, unsigned int*regs,FILE *fplog) {
     if(fplog){
       printf("Valore letto su SR%d = %08x \n",numReg,result);
       fprintf(fplog,"Valore letto su SR%d = %08x \n",numReg,result);
+      fflush(fplog);
+
     }
     if(regs){
       regs[numReg]=result;
@@ -255,15 +257,11 @@ void InitTDCV5_KLOE(unsigned int *base_address, FILE *fplog) {
 
   printf("Init TDC KLOE \n");
   fprintf(fplog,"Init TDC KLOE \n");
-//Leggo lo stato di slave reg 0
-  numReg = 0;
-  offset =  0x00f80000 + numReg*4;;
-  vme_ptr = (unsigned int*)((long)base_address + offset);
-  Vme_D32READ(base_address,vme_ptr,result);
-  if ( result != 0xFFFFFFFF ) { // tutti i canali abilitati
-    result = 0xFFFFFFFF;
-    Vme_D32WRITE(base_address,vme_ptr,result);
-  }
+  // enable all channels
+  WRITE32(base_address,HET_REG_OFF(0),0xFFFFFFFF);
+
+  result=READ32(base_address,HET_REG_OFF(0));
+  
 
 //Leggo lo stato di slave reg 1
   numReg = 1;
