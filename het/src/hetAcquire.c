@@ -1,4 +1,4 @@
-#define MOTOROLA
+
 /**
  * Acquisition through !CHAOS
  * Andrea Michelotti November 2018
@@ -275,6 +275,12 @@ int main(int argc, char *argv[])
   }
   else
   {
+    printf("* reset ALL\n");
+    WRITE32(vme_base, HET_REG_OFF(4), 0xFFFFFFFF);
+    sleep(1);
+    WRITE32(vme_base, HET_REG_OFF(4), 0);
+
+
     // enable all channels
     WRITE32(vme_base, HET_REG_OFF(0), 0xFFFFFFFF);
     WRITE32(vme_base, HET_REG_OFF(1), ENABLE_T1 | ENABLE_T2 | FIFO_NORMAL | FIFO_TRG_UKN);
