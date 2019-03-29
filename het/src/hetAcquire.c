@@ -1,4 +1,3 @@
-
 /**
  * Acquisition through !CHAOS
  * Andrea Michelotti November 2018
@@ -276,6 +275,9 @@ int main(int argc, char *argv[])
   else
   {
     printf("* reset ALL\n");
+    //enable reset
+    WRITE32(vme_base, HET_REG_OFF(1), CTRL_RESET_ENABLE|GBL_RESET_ENABLE|MEM_RESET_ENABLE|FSM_RESET_ENABLE|PLL_RESET_ENABLE|ENABLE_T1 | ENABLE_T2 | FIFO_NORMAL | FIFO_TRG_UKN);
+    // do reset
     WRITE32(vme_base, HET_REG_OFF(4), 0xFFFFFFFF);
     sleep(1);
     WRITE32(vme_base, HET_REG_OFF(4), 0);
@@ -383,9 +385,7 @@ int main(int argc, char *argv[])
             fprintf(fplog, "[ev:%llu,pos:%d,origpos:%d] HEADER1  0x%x\n", eventn,fifo_cnt,cnt, evtbuf[cnt]);
             fflush(fplog);
 #endif
-            continue;
-          }
-          if ((shm_state == HEADER1_FOUND) && ((evtbuf[cnt] & 0xFFFFF000) == 0xFD000000))
+          } else if ((shm_state == HEADER1_FOUND) && ((evtbuf[cnt] & 0xFFFFF000) == 0xFD000000))
           {
             shm_state = HEADER2_FOUND;
             t2=evtbuf[cnt] & 0xFFF;
@@ -394,11 +394,9 @@ int main(int argc, char *argv[])
             fprintf(fplog, "==[ev:%llu,pos:%d,orig:%d] HEADER data=0x%x T2=%d==\n", eventn, fifo_cnt, cnt,evtbuf[cnt], evtbuf[cnt] & 0xFFF);
             fflush(fplog);
 #endif
-            eventn++;
             fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]);
-            continue;
-          }
-          if (((shm_state == HEADER2_FOUND) || (shm_state == DATA_FOUND)) && ((evtbuf[cnt] & 0x80000000) == 0x0))
+            
+          } else if (((shm_state == HEADER2_FOUND) || (shm_state == DATA_FOUND)) && ((evtbuf[cnt] & 0x80000000) == 0x0))
           {
             shm_state = DATA_FOUND;
  #ifdef DEBUG
@@ -407,11 +405,17 @@ int main(int argc, char *argv[])
 #endif
             fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]);
 
-            continue;
-          }
-          if ((evtbuf[cnt] & 0xFFF00000) == 0xF7F00000)
-          {
-   #ifdef DEBUG
+          } else if((shm_state == DATA_FOUND) && (evtbuf[cnt] & 0x80000000)){
+              shm_state = FOOTER1_FOUND;
+              fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]);
+            
+          } else if((shm_state == FOOTER1_FOUND) && (evtbuf[cnt] & 0x80000000)){
+              fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]);
+              shm_state = FOOTER2_FOUND;
+          } else if ( (shm_state == FOOTER2_FOUND) && ((evtbuf[cnt] & 0xFFF00000) == 0xF7F00000)){
+              eventn++;
+
+#ifdef DEBUG
      
             fprintf(fplog, "[ev:%llu,pos:%d,orig:%d] END WORDS:%d\n", eventn, fifo_cnt, cnt,evtbuf[cnt]&0x7FFF);
             fflush(fplog);

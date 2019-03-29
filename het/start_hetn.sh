@@ -2,7 +2,8 @@
 ## defaults
 #10.10.6.131 chaost-webui2
 #10.10.5.131 chaos-webui2
-server="10.10.5.130:8081"
+#server="10.10.5.130:8081"
+server="10.10.6.130:8081"
 name="DAFNE/LUMINOMETER/HET/HETN"
 if [ -n "$1" ];then
     ## name
