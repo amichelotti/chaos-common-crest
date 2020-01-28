@@ -742,7 +742,9 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
       size+= attr->alloc_size;
     }
     buffer=(char*)malloc(size);
-    snprintf(buffer, size, "{\"ndk_uid\":\"%s\",\"dpck_ds_type\":%d,\"dpck_seq_id\":%llu,\"dpck_ats\":%llu%s", cu->name, 0, p->npush, ts, cu->nout > 0 ? "," : "");
+    snprintf(buffer, size, "{\"ndk_uid\":\"%s\",\"dpck_ds_type\":%d,\"dpck_seq_id\":{\"$numberLong\":\"%llu\"},\"dpck_ats\":{\"$numberLong\":\"%llu\"}%s", cu->name, 0, p->npush, ts, cu->nout > 0 ? "," : "");
+  //  snprintf(buffer, size, "{\"ndk_uid\":\"%s\",\"dpck_ds_type\":%d,\"dpck_seq_id\":{\"$numberLong\":\"%llu\"}%s", cu->name, 0, p->npush, cu->nout > 0 ? "," : "");
+
     for (cnt = 0; cnt < cu->nout; cnt++)
     {
       csize = strlen(buffer);
