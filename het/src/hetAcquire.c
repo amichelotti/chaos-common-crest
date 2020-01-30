@@ -71,6 +71,8 @@ DEFINE_CU_DATASET(het_cu)
 DEFINE_ATTRIBUTE("STATUS", "STATUS REGISTER", DIR_OUTPUT, TYPE_INT32, sizeof(int32_t))
 DEFINE_ATTRIBUTE("EVENTS", "Events Found", DIR_OUTPUT, TYPE_INT64, sizeof(int64_t))
 
+DEFINE_ATTRIBUTE("Config", "Config register0", DIR_OUTPUT, (TYPE_INT32 | TYPE_VECTOR), 7)
+
 // DEFINE_ATTRIBUTE("SR7","SR7 REGISTER",DIR_OUTPUT,TYPE_INT32,sizeof(int32_t))
 // DEFINE_ATTRIBUTE("SR_STRING","SR7 REGISTER",DIR_OUTPUT,TYPE_STRING,10)
 
@@ -137,8 +139,8 @@ int main(int argc, char *argv[])
   int testmode = 0;
   int triggerDelay = 0;
   int fiducialOffset = 0;
-
-  uint32_t fifo[DMABUFFERSIZE / 4];
+  unsigned int loop = 0;
+  uint32_t* fifo;
 
   unsigned int *vme_ptr;
   int status, sizedma;
@@ -154,15 +156,16 @@ int main(int argc, char *argv[])
   uint32_t cu0;
   uint32_t readint;
   struct timeval mytime;
-  uint64_t eventn = 0,t2=0;
-  int fifo_cnt=0;
-  unsigned int address;
+  uint64_t eventn = 0;
+  int fifo_cnt = 0;
+  unsigned int address, t2 = 0;
   unsigned int r6 = 0;
+  fifo=calloc(1,DMABUFFERSIZE);
   /* unsigned long dataint,readint,databuf;*/
   *chaosserver = 0;
   *cuname = 0;
   address = 0x01000000;
-
+  
   while (cnt < argc)
   {
     if ((!strcmp(argv[cnt], "-s")) && ((cnt + 1) < argc))
@@ -276,12 +279,11 @@ int main(int argc, char *argv[])
   {
     printf("* reset ALL\n");
     //enable reset
-    WRITE32(vme_base, HET_REG_OFF(1), CTRL_RESET_ENABLE|GBL_RESET_ENABLE|MEM_RESET_ENABLE|FSM_RESET_ENABLE|PLL_RESET_ENABLE|ENABLE_T1 | ENABLE_T2 | FIFO_NORMAL | FIFO_TRG_UKN);
+    //  WRITE32(vme_base, HET_REG_OFF(1), CTRL_RESET_ENABLE|GBL_RESET_ENABLE|MEM_RESET_ENABLE|FSM_RESET_ENABLE|PLL_RESET_ENABLE|ENABLE_T1 | ENABLE_T2 | FIFO_NORMAL | FIFO_TRG_UKN);
     // do reset
     WRITE32(vme_base, HET_REG_OFF(4), 0xFFFFFFFF);
     sleep(1);
     WRITE32(vme_base, HET_REG_OFF(4), 0);
-
 
     // enable all channels
     WRITE32(vme_base, HET_REG_OFF(0), 0xFFFFFFFF);
@@ -306,15 +308,51 @@ int main(int argc, char *argv[])
   }
   printf("* registering to %s...\n", chaosserver);
   // 0 means all defined CU
+  chaos_crest_update(handle, cu0, 1, &eventn);
+  chaos_crest_update(handle, cu0, 3, fifo);
+
   if ((ret = chaos_crest_register(handle, cu0)) != 0)
   {
     printf("## cannot register CUs, error:%d\n", ret);
     return -9;
   }
   printf("* registration average  %f ms...\n", chaos_crest_reg_time(handle));
-  printf("* pushing to %s...\n", chaosserver);
   cnt = 0;
   trig_old = 0;
+
+  // state of the board;
+  sleep(10);
+
+  {
+    unsigned int regs[7];
+
+    for (cnt = 0; cnt < 7; cnt++)
+    {
+      regs[cnt] = READ32(vme_base, HET_REG_OFF(cnt));
+      printf("* read regs[%d]=0x%x\n", cnt, regs[cnt]);
+      regs[cnt] = endian_swap(regs[cnt]);
+    }
+    chaos_crest_update(handle, cu0, 0, &regs[6]);
+
+    chaos_crest_update(handle, cu0, 1, &eventn);
+    //     chaos_crest_update(handle, cu0, 2, regs);
+    chaos_crest_update(handle, cu0, 2, regs);
+
+    chaos_crest_update(handle, cu0, 3, fifo);
+    if ((ret = chaos_crest_push(handle, cu0, 0)) != 0)
+    {
+      printf("## error pushing ret:%d\n", ret);
+      //  return ret;
+    }
+    if ((ret = chaos_crest_push(handle, cu0, 0)) != 0)
+    {
+      printf("## error pushing ret:%d\n", ret);
+      //  return ret;
+    }
+    sleep(1);
+  }
+
+  printf("* pushing to %s...\nStarting..\n", chaosserver);
 
   while (1)
   {
@@ -353,7 +391,7 @@ int main(int argc, char *argv[])
 
     if (status <= HOWTOREAD)
     {
-      printf("status = %d 0x%x T2 DONE:%d, NEXT:%d\n", status, r6, GET_T2_DONE(r6), GET_T2_NEXT(r6));
+      printf("%u] status = %d 0x%x T2 DONE:%d, NEXT:%d\n", loop++, status, r6, GET_T2_DONE(r6), GET_T2_NEXT(r6));
 
       offset = 0x0;
       ret = VmeDmaRead(ciddma, offset, (char *)evtbuf, DMABUFFERSIZE); // deve leggere un quarto della fifo
@@ -373,7 +411,7 @@ int main(int argc, char *argv[])
       {
         shm_state = SEARCH_HEADER;
         //for (cnt = (DMABUFFERSIZE / 4) - 1; cnt >= 0; cnt--)
-        for (cnt = 0,fifo_cnt=0; cnt <(DMABUFFERSIZE / 4); cnt++)
+        for (cnt = 0, fifo_cnt = 0; cnt < (DMABUFFERSIZE / 4); cnt++)
         {
 
 #ifdef MOTOROLA
@@ -382,49 +420,54 @@ int main(int argc, char *argv[])
           {
             shm_state = HEADER1_FOUND;
 #ifdef DEBUG
-            fprintf(fplog, "[ev:%llu,pos:%d,origpos:%d] HEADER1  0x%x\n", eventn,fifo_cnt,cnt, evtbuf[cnt]);
+            fprintf(fplog, "[ev:%llu,pos:%d,origpos:%d] HEADER1  0x%x\n", eventn, fifo_cnt, cnt, evtbuf[cnt]);
             fflush(fplog);
 #endif
-          } else if ((shm_state == HEADER1_FOUND) && ((evtbuf[cnt] & 0xFFFFF000) == 0xFD000000))
+          }
+          else if ((shm_state == HEADER1_FOUND) && ((evtbuf[cnt] & 0xFFFFF000) == 0xFD000000))
           {
             shm_state = HEADER2_FOUND;
-            t2=evtbuf[cnt] & 0xFFF;
+            t2 = evtbuf[cnt] & 0xFFF;
 #ifdef DEBUG
 
-            fprintf(fplog, "==[ev:%llu,pos:%d,orig:%d] HEADER data=0x%x T2=%d==\n", eventn, fifo_cnt, cnt,evtbuf[cnt], evtbuf[cnt] & 0xFFF);
+            fprintf(fplog, "==[ev:%llu,pos:%d,orig:%d] HEADER data=0x%x T2=%d==\n", eventn, fifo_cnt, cnt, evtbuf[cnt], evtbuf[cnt] & 0xFFF);
             fflush(fplog);
 #endif
             fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]);
-            
-          } else if (((shm_state == HEADER2_FOUND) || (shm_state == DATA_FOUND)) && ((evtbuf[cnt] & 0x80000000) == 0x0))
+          }
+          else if (((shm_state == HEADER2_FOUND) || (shm_state == DATA_FOUND)) && ((evtbuf[cnt] & 0x80000000) == 0x0))
           {
             shm_state = DATA_FOUND;
- #ifdef DEBUG
-            fprintf(fplog, "[ev:%llu,pos:%d,orig:%d] DATA 0x%x\n", eventn, fifo_cnt, cnt,evtbuf[cnt]);
+#ifdef DEBUG
+            fprintf(fplog, "[ev:%llu,pos:%d,orig:%d] DATA 0x%x\n", eventn, fifo_cnt, cnt, evtbuf[cnt]);
             fflush(fplog);
 #endif
             fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]);
-
-          } else if((shm_state == DATA_FOUND) && (evtbuf[cnt] & 0x80000000)){
-              shm_state = FOOTER1_FOUND;
-              fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]);
-            
-          } else if((shm_state == FOOTER1_FOUND) && (evtbuf[cnt] & 0x80000000)){
-              fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]);
-              shm_state = FOOTER2_FOUND;
-          } else if ( (shm_state == FOOTER2_FOUND) && ((evtbuf[cnt] & 0xFFF00000) == 0xF7F00000)){
-              eventn++;
+          }
+          else if ((shm_state == DATA_FOUND) && (evtbuf[cnt] & 0x80000000))
+          {
+            shm_state = FOOTER1_FOUND;
+            fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]);
+          }
+          else if ((shm_state == FOOTER1_FOUND) && (evtbuf[cnt] & 0x80000000))
+          {
+            fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]);
+            shm_state = FOOTER2_FOUND;
+          }
+          else if ((shm_state == FOOTER2_FOUND) && ((evtbuf[cnt] & 0xFFF00000) == 0xF7F00000))
+          {
+            eventn++;
 
 #ifdef DEBUG
-     
-            fprintf(fplog, "[ev:%llu,pos:%d,orig:%d] END WORDS:%d\n", eventn, fifo_cnt, cnt,evtbuf[cnt]&0x7FFF);
+
+            fprintf(fplog, "[ev:%llu,pos:%d,orig:%d] END WORDS:%d\n", eventn, fifo_cnt, cnt, evtbuf[cnt] & 0x7FFF);
             fflush(fplog);
 #endif
-            fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]& 0xFFF00000|t2);
-
+            //  fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]& 0xFFF00000|t2);
+            fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]);
             shm_state = SEARCH_HEADER;
-          }         
-         
+          }
+
 #else
           fifo[cnt] = evtbuf[cnt];
 
@@ -446,12 +489,14 @@ int main(int argc, char *argv[])
         }*/
         }
         chaos_crest_update(handle, cu0, 1, &eventn);
-        chaos_crest_update(handle, cu0, 2, fifo);
+        //     chaos_crest_update(handle, cu0, 2, regs);
+
+        chaos_crest_update(handle, cu0, 3, fifo);
       }
-      if ((ret = chaos_crest_push(handle, cu0)) != 0)
+      if ((ret = chaos_crest_push(handle, cu0, 0)) != 0)
       {
         printf("## error pushing ret:%d\n", ret);
-        return ret;
+        //  return ret;
       }
     }
   }
