@@ -133,9 +133,10 @@ static int http_post(chaos_crest_handle_t h, const char *api, const char *trx_bu
   nc = mg_connect_http(&p->mgr, ev_handler, s_url, "Content-Type:application/json\r\nConnection:keep-alive\r\n", trx_buffer);
   while (s_exit_flag == 0)
   {
-    mg_mgr_poll(&p->mgr, 1000);
+    mg_mgr_poll(&p->mgr, 1);
   }
   ret = (s_exit_flag > 0) ? 0 : s_exit_flag;
+  
 #ifndef MOONGOOSE
 
   if (rx_buffer == 0)
@@ -466,22 +467,22 @@ uint32_t chaos_crest_add_cu(chaos_crest_handle_t h, const char *name, chaos_ds_t
       if ((dsin[cnt].type == TYPE_BINARY) || (dsin[cnt].type & TYPE_VECTOR))
       {
         p->cus[p->ncus].outds[cnt_out].size=dsin[cnt].size;
-        dsin[cnt].alloc_size = dsin[cnt].size * 2;
+        dsin[cnt].alloc_size = dsin[cnt].size * 3 +MAXDIGITS;
         if ((dsin[cnt].type & TYPE_INT32) && (dsin[cnt].type & TYPE_VECTOR))
         {
-          dsin[cnt].alloc_size = dsin[cnt].size * sizeof(int32_t) * 2;
+          dsin[cnt].alloc_size = dsin[cnt].size * sizeof(int32_t) * 3 +MAXDIGITS;
           p->cus[p->ncus].outds[cnt_out].size=dsin[cnt].size* sizeof(int32_t);
 
         }
         else if ((dsin[cnt].type & TYPE_DOUBLE) && (dsin[cnt].type & TYPE_VECTOR))
         {
-          dsin[cnt].alloc_size = dsin[cnt].size * sizeof(double) * 2;
+          dsin[cnt].alloc_size = dsin[cnt].size * sizeof(double) * 3 + MAXDIGITS;
           p->cus[p->ncus].outds[cnt_out].size=dsin[cnt].size* sizeof(double);
 
         }
         else if ((dsin[cnt].type & TYPE_INT64) && (dsin[cnt].type & TYPE_VECTOR))
         {
-          dsin[cnt].alloc_size = dsin[cnt].size * sizeof(int64_t) * 2;
+          dsin[cnt].alloc_size = dsin[cnt].size * sizeof(int64_t) * 3 +MAXDIGITS;
           p->cus[p->ncus].outds[cnt_out].size=dsin[cnt].size* sizeof(int64_t);
 
         }
@@ -538,7 +539,7 @@ uint32_t chaos_crest_add_cu(chaos_crest_handle_t h, const char *name, chaos_ds_t
         if(diff>0){
           diff+=strlen(p->format);
           p->alloc_size+=diff;
-          p->data=realloc(p->data,diff);
+          p->data=realloc(p->data,p->alloc_size);
           
         }
         snprintf(p->data, p->alloc_size, p->format, bsa);
@@ -718,7 +719,7 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
 }
 */
 
-  static int push_cu_int(chaos_crest_handle_t h, uint32_t cu_uid, int mode)
+  static int push_cu_int(chaos_crest_handle_t h, uint32_t cu_uid, int mode,int datasetType)
   {
     _chaos_crest_handle_t *p = (_chaos_crest_handle_t *)h;
     cu_t *cu;
@@ -729,6 +730,9 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
     int csize;
     uint64_t ts;
     char*buffer;
+    int nports=0;
+    ds_t *dataset=0;
+
     if ((cu_uid > p->ncus) || (cu_uid <= 0))
     {
       printf("## bad Id %d", cu_uid);
@@ -737,31 +741,40 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
 
     cu = p->cus + (cu_uid - 1);
     ts = getEpoch();
-    for (cnt = 0; cnt < cu->nout; cnt++){
-      ds_t * attr=cu->outds + cnt;
-      size+= attr->alloc_size;
+    nports=(datasetType==0)?cu->nout:cu->nin;
+    dataset=(datasetType==0)?cu->outds:cu->inds;
+    for (cnt = 0; cnt < nports; cnt++){
+        ds_t * attr=dataset + cnt;
+        size+= attr->alloc_size;
     }
+    
+    
     buffer=(char*)malloc(size);
-    snprintf(buffer, size, "{\"ndk_uid\":\"%s\",\"dpck_ds_type\":%d,\"dpck_seq_id\":{\"$numberLong\":\"%llu\"},\"dpck_ats\":{\"$numberLong\":\"%llu\"}%s", cu->name, 0, p->npush, ts, cu->nout > 0 ? "," : "");
+    if (mode > 0)
+    {
+      snprintf(url, sizeof(url), "/api/v1/producer/jsoninsert");
+      snprintf(buffer, size, "{\"ndk_uid\":\"%s\",\"dpck_ds_type\":%d,\"dpck_seq_id\":{\"$numberLong\":\"%llu\"},\"dpck_ats\":{\"$numberLong\":\"%llu\"}%s", cu->name, datasetType, p->npush, ts, nports > 0 ? "," : "");
+
+    }
+    else
+    {
+      p->npush=0;
+      snprintf(url, sizeof(url), "/api/v1/producer/jsonregister");
+      snprintf(buffer, size, "{\"ndk_uid\":\"%s\",\"dpck_ds_type\":%d,\"cudk_ds_attr_dir\":%d,\"dpck_seq_id\":{\"$numberLong\":\"%llu\"},\"dpck_ats\":{\"$numberLong\":\"%llu\"}%s", cu->name, datasetType,(datasetType==0)?1:0, p->npush, ts, nports > 0 ? "," : "");
+
+    }
   //  snprintf(buffer, size, "{\"ndk_uid\":\"%s\",\"dpck_ds_type\":%d,\"dpck_seq_id\":{\"$numberLong\":\"%llu\"}%s", cu->name, 0, p->npush, cu->nout > 0 ? "," : "");
 
-    for (cnt = 0; cnt < cu->nout; cnt++)
+    for (cnt = 0; cnt < nports; cnt++)
     {
       csize = strlen(buffer);
       pnt = buffer + csize;
-      dump_attribute_value(cu->outds + cnt, pnt, size - csize, ((cnt + 1) == cu->nout));
+      dump_attribute_value(dataset + cnt, pnt, size - csize, ((cnt + 1) == nports));
     }
     strcat(buffer, "}");
 
     //    snprintf(url,sizeof(url),"/api/v1/producer/insert/%s",cu->name);
-    if (mode > 0)
-    {
-      snprintf(url, sizeof(url), "/api/v1/producer/jsoninsert");
-    }
-    else
-    {
-      snprintf(url, sizeof(url), "/api/v1/producer/jsonregister");
-    }
+    
     char buffer_rx[8192];
     if ((err = http_post(h, url, buffer, strlen(buffer), buffer_rx, sizeof(buffer_rx))) == 0)
     {
@@ -792,6 +805,7 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
     int err;
     int csize;
     unsigned long long ts;
+    int ret;
     if ((cu_uid > p->ncus) || (cu_uid <= 0))
     {
       printf("## bad Id %d", cu_uid);
@@ -820,13 +834,39 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
         snprintf(p->data, p->alloc_size, p->format, "");
       }
     }
-      return push_cu_int(h, cu_uid, 0);
-    
+      
+      ret=push_cu_int(h, cu_uid, 0,0);
+
+     for (cnt = 0; cnt < cu->nin; cnt++)
+    {
+      ds_t *p = cu->inds + cnt;
+      //      printf("format : %d->%s\n",p->type,p->format);
+
+      if (p->type == TYPE_INT32)
+      {
+        snprintf(p->data, p->alloc_size, p->format, 0);
+      }
+      else if (p->type == TYPE_INT64)
+      {
+        snprintf(p->data, p->alloc_size, p->format, 0);
+      }
+      else if (p->type == TYPE_DOUBLE)
+      {
+        snprintf(p->data, p->alloc_size, p->format, 1.2);
+      }
+      else {
+        snprintf(p->data, p->alloc_size, p->format, "");
+      }
+    }
+    if(cu->nin){
+      ret+= push_cu_int(h, cu_uid, 0,1);
+    }
+    return ret;
   }
 
-    static int push_cu(chaos_crest_handle_t h, uint32_t cu_uid)
+    static int push_cu(chaos_crest_handle_t h, uint32_t cu_uid,int dstype)
     {
-      return push_cu_int(h, cu_uid, 1);
+      return push_cu_int(h, cu_uid, 1,dstype);
     }
     int chaos_crest_register(chaos_crest_handle_t h, uint32_t cu_cuid)
     {
@@ -849,7 +889,7 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
       return register_cu(h, cu_cuid, buffer, sizeof(buffer));
     }
 
-    int chaos_crest_push(chaos_crest_handle_t h, uint32_t cu_uid)
+    int chaos_crest_push(chaos_crest_handle_t h, uint32_t cu_uid,int dstype)
     {
       _chaos_crest_handle_t *p = (_chaos_crest_handle_t *)h;
       int ret;
@@ -859,7 +899,7 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
         int cnt;
         for (cnt = 0; cnt < p->ncus; cnt++)
         {
-          if ((ret = push_cu(h, cnt + 1)) != 0)
+          if ((ret = push_cu(h, cnt + 1,dstype)) != 0)
           {
             return ret;
           }
@@ -867,7 +907,7 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
         return 0;
       }
 
-      return push_cu(h, cu_uid);
+      return push_cu(h, cu_uid,dstype);
     }
 
     float chaos_crest_push_time(chaos_crest_handle_t h, uint32_t * max, uint32_t * min)
