@@ -157,7 +157,6 @@ int main(int argc, char *argv[])
   uint32_t readint;
   struct timeval mytime;
   uint64_t eventn = 0;
-  int fifo_cnt = 0;
   unsigned int address, t2 = 0;
   unsigned int r6 = 0;
   fifo=calloc(1,DMABUFFERSIZE);
@@ -411,7 +410,7 @@ int main(int argc, char *argv[])
       {
         shm_state = SEARCH_HEADER;
         //for (cnt = (DMABUFFERSIZE / 4) - 1; cnt >= 0; cnt--)
-        for (cnt = 0, fifo_cnt = 0; cnt < (DMABUFFERSIZE / 4); cnt++)
+        for (cnt = 0; cnt < (DMABUFFERSIZE / 4); cnt++)
         {
 
 #ifdef MOTOROLA
@@ -420,7 +419,7 @@ int main(int argc, char *argv[])
           {
             shm_state = HEADER1_FOUND;
 #ifdef DEBUG
-            fprintf(fplog, "[ev:%llu,pos:%d,origpos:%d] HEADER1  0x%x\n", eventn, fifo_cnt, cnt, evtbuf[cnt]);
+            fprintf(fplog, "[ev:%llu,pos:%d] HEADER1  0x%x\n", eventn, cnt, evtbuf[cnt]);
             fflush(fplog);
 #endif
           }
@@ -430,28 +429,24 @@ int main(int argc, char *argv[])
             t2 = evtbuf[cnt] & 0xFFF;
 #ifdef DEBUG
 
-            fprintf(fplog, "==[ev:%llu,pos:%d,orig:%d] HEADER data=0x%x T2=%d==\n", eventn, fifo_cnt, cnt, evtbuf[cnt], evtbuf[cnt] & 0xFFF);
+            fprintf(fplog, "==[ev:%llu,pos:%d] HEADER data=0x%x T2=%d==\n", eventn, cnt, evtbuf[cnt], evtbuf[cnt] & 0xFFF);
             fflush(fplog);
 #endif
-            fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]);
           }
           else if (((shm_state == HEADER2_FOUND) || (shm_state == DATA_FOUND)) && ((evtbuf[cnt] & 0x80000000) == 0x0))
           {
             shm_state = DATA_FOUND;
 #ifdef DEBUG
-            fprintf(fplog, "[ev:%llu,pos:%d,orig:%d] DATA 0x%x\n", eventn, fifo_cnt, cnt, evtbuf[cnt]);
+            fprintf(fplog, "[ev:%llu,pos:%d] DATA 0x%x\n", eventn, cnt, evtbuf[cnt]);
             fflush(fplog);
 #endif
-            fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]);
           }
           else if ((shm_state == DATA_FOUND) && (evtbuf[cnt] & 0x80000000))
           {
             shm_state = FOOTER1_FOUND;
-            fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]);
           }
           else if ((shm_state == FOOTER1_FOUND) && (evtbuf[cnt] & 0x80000000))
           {
-            fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]);
             shm_state = FOOTER2_FOUND;
           }
           else if ((shm_state == FOOTER2_FOUND) && ((evtbuf[cnt] & 0xFFF00000) == 0xF7F00000))
@@ -464,9 +459,10 @@ int main(int argc, char *argv[])
             fflush(fplog);
 #endif
             //  fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]& 0xFFF00000|t2);
-            fifo[fifo_cnt++] = endian_swap(evtbuf[cnt]);
+         
             shm_state = SEARCH_HEADER;
           }
+          fifo[cnt] = endian_swap(evtbuf[cnt]);
 
 #else
           fifo[cnt] = evtbuf[cnt];
