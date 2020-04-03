@@ -193,7 +193,7 @@ int main(int argc, char** argv) {
 	chaos_crest_update(handle,scaler,0,&idata32);
 	chaos_crest_update(handle,scaler,1,&idata32);
 
-	if((ret=chaos_crest_push(handle,0))!=0){
+	if((ret=chaos_crest_push(handle,0,0))!=0){
 	  printf("## error pushing ret:%d\n",ret);
 	  exit(1);
 	}

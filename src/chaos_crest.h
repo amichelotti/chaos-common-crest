@@ -129,7 +129,7 @@ int chaos_crest_json_push(chaos_crest_handle_t h,const char* cu_uid, const char*
  * @param cu_uid the cu_uid that we want to push on the cloud, 0 means all the cu defined
  * @return 0 on success, error otherwise
  */
-int chaos_crest_push(chaos_crest_handle_t h,uint32_t cu_uid);
+int chaos_crest_push(chaos_crest_handle_t h,uint32_t cu_uid,int dstype);
 
 /**
  * return the average push time in ms
