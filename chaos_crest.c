@@ -121,7 +121,7 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
 }
 #endif
 
-static int http_post(chaos_crest_handle_t h, const char *api, const char *trx_buffer, int tsizeb, char *rx_buffer, int rsizeb)
+int http_post(chaos_crest_handle_t h, const char *api, const char *trx_buffer, int tsizeb, char *rx_buffer, int rsizeb)
 {
   _chaos_crest_handle_t *p = (_chaos_crest_handle_t *)h;
   int ret;
@@ -194,20 +194,20 @@ int chaos_crest_json_push(chaos_crest_handle_t h, const char *cu_uid, const char
 static const char *typeNumberToString(int type)
 {
   static char buf[256];
-  if (type == TYPE_INT32)
+  if (type == CREST_TYPE_INT32)
   {
 
     return "int32";
   }
-  else if (type == TYPE_INT64)
+  else if (type == CREST_TYPE_INT64)
   {
     return "int64";
   }
-  else if (type == TYPE_DOUBLE)
+  else if (type == CREST_TYPE_DOUBLE)
   {
     return "double";
   }
-  else if (type == TYPE_STRING)
+  else if (type == CREST_TYPE_STRING)
   {
     return "string";
   }
@@ -221,19 +221,19 @@ static const char *typeNumberToString(int type)
 */
 static const char *typeToString(int type)
 {
-  if (type == TYPE_INT32)
+  if (type == CREST_TYPE_INT32)
   {
     return "int32";
   }
-  else if (type == TYPE_INT64)
+  else if (type == CREST_TYPE_INT64)
   {
     return "int64";
   }
-  else if (type == TYPE_DOUBLE)
+  else if (type == CREST_TYPE_DOUBLE)
   {
     return "double";
   }
-  else if (type == TYPE_STRING)
+  else if (type == CREST_TYPE_STRING)
   {
     return "string";
   }
@@ -247,38 +247,38 @@ static const char *typeToString(int type)
 
 static const char *typeToFormat(int type)
 {
-  if (type == TYPE_INT32)
+  if (type == CREST_TYPE_INT32)
   {
     return "%d";
   }
-  else if (type == TYPE_INT64)
+  else if (type == CREST_TYPE_INT64)
   {
     return "{\"$numberLong\":\"%lld\"}";
   }
-  else if (type == TYPE_DOUBLE)
+  else if (type == CREST_TYPE_DOUBLE)
   {
     return "{\"$numberDouble\":\"%lf\"}";
   }
-  else if (type == TYPE_STRING)
+  else if (type == CREST_TYPE_STRING)
   {
     return "\"%s\"";
   }
-  else if (type == TYPE_BINARY)
+  else if (type == CREST_TYPE_BINARY)
   {
     return "{\"$binary\":{\"base64\":\"%s\",\"subType\":\"00\"}}}";
   }
-  else if ((type & TYPE_INT32) && (type & TYPE_VECTOR))
+  else if ((type & CREST_TYPE_INT32) && (type & CREST_TYPE_VECTOR))
   {
     return "{\"$binary\":{\"base64\":\"%s\",\"subType\":\"84\"}}";
   }
-  else if ((type & TYPE_DOUBLE) && (type & TYPE_VECTOR))
+  else if ((type & CREST_TYPE_DOUBLE) && (type & CREST_TYPE_VECTOR))
   {
     return "{\"$binary\":{\"base64\":\"%s\",\"subType\":\"86\"}}";
   }
-  else if ((type & TYPE_INT64) && (type & TYPE_VECTOR))
+  else if ((type & CREST_TYPE_INT64) && (type & CREST_TYPE_VECTOR))
   {
     return "{\"$binary\":{\"base64\":\"%s\",\"subType\":\"85\"}}";
-  } else if ((type & TYPE_INT16) && (type & TYPE_VECTOR))
+  } else if ((type & CREST_TYPE_INT16) && (type & CREST_TYPE_VECTOR))
   {
     return "{\"$binary\":{\"base64\":\"%s\",\"subType\":\"83\"}}";
   }
@@ -422,8 +422,8 @@ uint32_t chaos_crest_add_cu(chaos_crest_handle_t h, const char *name, chaos_ds_t
   p->cus[p->ncus].maxbufsize = 0;
   for (cnt = 0; cnt < dsitems; cnt++)
   {
-    ndsin += ((dsin[cnt].dir == DIR_INPUT) || (dsin[cnt].dir == DIR_IO)) ? 1 : 0;
-    ndsout += ((dsin[cnt].dir == DIR_OUTPUT) || (dsin[cnt].dir == DIR_IO)) ? 1 : 0;
+    ndsin += ((dsin[cnt].dir == CREST_DIR_INPUT) || (dsin[cnt].dir == CREST_DIR_IO)) ? 1 : 0;
+    ndsout += ((dsin[cnt].dir == CREST_DIR_OUTPUT) || (dsin[cnt].dir == CREST_DIR_IO)) ? 1 : 0;
   }
   if (ndsin > 0)
   {
@@ -438,7 +438,7 @@ uint32_t chaos_crest_add_cu(chaos_crest_handle_t h, const char *name, chaos_ds_t
   }
   for (cnt = 0; cnt < dsitems; cnt++)
   {
-    if (((dsin[cnt].dir == DIR_INPUT) || (dsin[cnt].dir == DIR_IO)))
+    if (((dsin[cnt].dir == CREST_DIR_INPUT) || (dsin[cnt].dir == CREST_DIR_IO)))
     {
       p->cus[p->ncus].inds[cnt_in].name = strdup(dsin[cnt].name);
       //	  printf("name:%s 0x%x\n",p->cus[p->ncus].inds[cnt_in].name,p->cus[p->ncus].inds[cnt_in].name);
@@ -448,7 +448,7 @@ uint32_t chaos_crest_add_cu(chaos_crest_handle_t h, const char *name, chaos_ds_t
       p->cus[p->ncus].inds[cnt_in].size = dsin[cnt].size;
       cnt_in++;
     }
-    if (((dsin[cnt].dir == DIR_OUTPUT) || (dsin[cnt].dir == DIR_IO)))
+    if (((dsin[cnt].dir == CREST_DIR_OUTPUT) || (dsin[cnt].dir == CREST_DIR_IO)))
     {
       const char *stype;
       const char *sformat;
@@ -464,23 +464,23 @@ uint32_t chaos_crest_add_cu(chaos_crest_handle_t h, const char *name, chaos_ds_t
       p->cus[p->ncus].outds[cnt_out].size = (strlen(stringa) + 1 + dsin[cnt].size + MAXDIGITS);
       dsin[cnt].alloc_size = 64;
 
-      if ((dsin[cnt].type == TYPE_BINARY) || (dsin[cnt].type & TYPE_VECTOR))
+      if ((dsin[cnt].type == CREST_TYPE_BINARY) || (dsin[cnt].type & CREST_TYPE_VECTOR))
       {
         p->cus[p->ncus].outds[cnt_out].size=dsin[cnt].size;
         dsin[cnt].alloc_size = dsin[cnt].size * 3 +MAXDIGITS;
-        if ((dsin[cnt].type & TYPE_INT32) && (dsin[cnt].type & TYPE_VECTOR))
+        if ((dsin[cnt].type & CREST_TYPE_INT32) && (dsin[cnt].type & CREST_TYPE_VECTOR))
         {
           dsin[cnt].alloc_size = dsin[cnt].size * sizeof(int32_t) * 3 +MAXDIGITS;
           p->cus[p->ncus].outds[cnt_out].size=dsin[cnt].size* sizeof(int32_t);
 
         }
-        else if ((dsin[cnt].type & TYPE_DOUBLE) && (dsin[cnt].type & TYPE_VECTOR))
+        else if ((dsin[cnt].type & CREST_TYPE_DOUBLE) && (dsin[cnt].type & CREST_TYPE_VECTOR))
         {
           dsin[cnt].alloc_size = dsin[cnt].size * sizeof(double) * 3 + MAXDIGITS;
           p->cus[p->ncus].outds[cnt_out].size=dsin[cnt].size* sizeof(double);
 
         }
-        else if ((dsin[cnt].type & TYPE_INT64) && (dsin[cnt].type & TYPE_VECTOR))
+        else if ((dsin[cnt].type & CREST_TYPE_INT64) && (dsin[cnt].type & CREST_TYPE_VECTOR))
         {
           dsin[cnt].alloc_size = dsin[cnt].size * sizeof(int64_t) * 3 +MAXDIGITS;
           p->cus[p->ncus].outds[cnt_out].size=dsin[cnt].size* sizeof(int64_t);
@@ -514,23 +514,23 @@ uint32_t chaos_crest_add_cu(chaos_crest_handle_t h, const char *name, chaos_ds_t
       printf("## invalid attribute index for output, max is:%d\n", cu->nout - 1);
       return -7;
     }
-    if (p->type == TYPE_INT32)
+    if (p->type == CREST_TYPE_INT32)
     {
       snprintf(p->data, p->alloc_size, p->format, *(int32_t *)data);
     }
-    else if (p->type == TYPE_INT64)
+    else if (p->type == CREST_TYPE_INT64)
     {
       snprintf(p->data, p->alloc_size, p->format, *(int64_t *)data);
     }
-    else if (p->type == TYPE_DOUBLE)
+    else if (p->type == CREST_TYPE_DOUBLE)
     {
       snprintf(p->data, p->alloc_size, p->format, *(double *)data);
     }
-    else if (p->type == TYPE_STRING)
+    else if (p->type == CREST_TYPE_STRING)
     {
       snprintf(p->data, p->alloc_size, p->format, (char *)data);
     }
-    else if ((p->type == TYPE_BINARY) || (p->type & TYPE_VECTOR))
+    else if ((p->type == CREST_TYPE_BINARY) || (p->type & CREST_TYPE_VECTOR))
     {
       char *bsa = b64_encode((char *)data, p->size);
       if (bsa)
@@ -818,15 +818,15 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
       ds_t *p = cu->outds + cnt;
       //      printf("format : %d->%s\n",p->type,p->format);
 
-      if (p->type == TYPE_INT32)
+      if (p->type == CREST_TYPE_INT32)
       {
         snprintf(p->data, p->alloc_size, p->format, 0);
       }
-      else if (p->type == TYPE_INT64)
+      else if (p->type == CREST_TYPE_INT64)
       {
         snprintf(p->data, p->alloc_size, p->format, 0);
       }
-      else if (p->type == TYPE_DOUBLE)
+      else if (p->type == CREST_TYPE_DOUBLE)
       {
         snprintf(p->data, p->alloc_size, p->format, 1.2);
       }
@@ -842,15 +842,15 @@ static int register_cu(chaos_crest_handle_t h,uint32_t cu_uid,char*buffer,int si
       ds_t *p = cu->inds + cnt;
       //      printf("format : %d->%s\n",p->type,p->format);
 
-      if (p->type == TYPE_INT32)
+      if (p->type == CREST_TYPE_INT32)
       {
         snprintf(p->data, p->alloc_size, p->format, 0);
       }
-      else if (p->type == TYPE_INT64)
+      else if (p->type == CREST_TYPE_INT64)
       {
         snprintf(p->data, p->alloc_size, p->format, 0);
       }
-      else if (p->type == TYPE_DOUBLE)
+      else if (p->type == CREST_TYPE_DOUBLE)
       {
         snprintf(p->data, p->alloc_size, p->format, 1.2);
       }

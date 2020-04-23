@@ -16,6 +16,9 @@ typedef int int32_t;
 #include <stdint.h>
 #endif 
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef void* chaos_crest_handle_t;
 
@@ -28,18 +31,18 @@ typedef struct _chaos_ds{
     int        alloc_size;
 } chaos_ds_t;
 
-#define TYPE_INT32 0x1
-#define TYPE_INT64 0x2
-#define TYPE_DOUBLE 0x4
-#define TYPE_STRING 0x8
-#define TYPE_BINARY 0x10
-#define TYPE_INT16 0x20
+#define CREST_TYPE_INT32 0x1
+#define CREST_TYPE_INT64 0x2
+#define CREST_TYPE_DOUBLE 0x4
+#define CREST_TYPE_STRING 0x8
+#define CREST_TYPE_BINARY 0x10
+#define CREST_TYPE_INT16 0x20
 
-#define TYPE_VECTOR 0x1000
+#define CREST_TYPE_VECTOR 0x1000
 
-#define DIR_INPUT 0
-#define DIR_OUTPUT 1
-#define DIR_IO 2
+#define CREST_DIR_INPUT 0
+#define CREST_DIR_OUTPUT 1
+#define CREST_DIR_IO 2
 
 
 #define DEFINE_CU_DATASET(_x) \
@@ -201,4 +204,22 @@ uint64_t chaos_crest_cu_get_channel(chaos_crest_handle_t h,const char*cuname,con
  */
 
 int chaos_crest_close(chaos_crest_handle_t h);
+
+/**
+ * @brief Post raw  operation
+ * 
+ * @param h handle containing the server
+ * @param api path/function rest
+ * @param trx_buffer buffer to send
+ * @param tsizeb  buffer size in bytes
+ * @param rx_buffer return buffer 
+ * @param rsizeb max return buffer size
+ * @return int zero if success
+ */
+int http_post(chaos_crest_handle_t h, const char *api, const char *trx_buffer, int tsizeb, char *rx_buffer, int rsizeb);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif
