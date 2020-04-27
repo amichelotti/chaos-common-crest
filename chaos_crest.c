@@ -87,6 +87,10 @@ typedef struct _chaos_crest_handle
 
 #ifdef MOONGOOSE
 static int s_exit_flag = 0;
+typedef struct __user_data {
+    char*buf;
+    int len;  
+  } userdata_t;
 
 static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
 {
@@ -103,11 +107,16 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
       s_exit_flag = -1;
     }
     break;
-  case MG_EV_HTTP_REPLY:
+  case MG_EV_HTTP_REPLY:{
+    userdata_t *ptr= (userdata_t *)nc->mgr->user_data;
     // printf("Got reply:\n%.*s\n%d\n", (int) hm->body.len, hm->body.p,hm->resp_code);
+    if(ptr && ptr->buf){
+      memcpy(ptr->buf,hm->body.p,(hm->body.len<ptr->len)?hm->body.len:ptr->len);
+    }
     nc->flags |= MG_F_SEND_AND_CLOSE;
     s_exit_flag = hm->resp_code;
     break;
+  }
   case MG_EV_CLOSE:
     if (s_exit_flag == 0)
     {
@@ -130,7 +139,15 @@ int http_post(chaos_crest_handle_t h, const char *api, const char *trx_buffer, i
   snprintf(s_url, sizeof(s_url), "%s%s", p->wan_url, api);
   s_exit_flag = 0;
   DPRINT("POSTING:%s\n",trx_buffer);
-  nc = mg_connect_http(&p->mgr, ev_handler, s_url, "Content-Type:application/json\r\nConnection:keep-alive\r\n", trx_buffer);
+  userdata_t us;
+  us.buf=0;
+  if(rx_buffer){
+    us.buf=rx_buffer;
+    us.len=rsizeb;
+    p->mgr.user_data=&us;
+  }
+  nc = mg_connect_http(&p->mgr, MG_CB(ev_handler,&us), s_url, "Content-Type:application/json\r\nConnection:keep-alive\r\n", trx_buffer);
+   
   while (s_exit_flag == 0)
   {
     mg_mgr_poll(&p->mgr, 1);
