@@ -121,7 +121,7 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
     if (s_exit_flag == 0)
     {
       //    printf("Server closed connection\n");
-      s_exit_flag = 1;
+  //    s_exit_flag = 1;
     };
     break;
   default:
@@ -145,14 +145,16 @@ int http_post(chaos_crest_handle_t h, const char *api, const char *trx_buffer, i
     us.buf=rx_buffer;
     us.len=rsizeb;
     p->mgr.user_data=&us;
+    *rx_buffer=0;
   }
-  nc = mg_connect_http(&p->mgr, MG_CB(ev_handler,&us), s_url, "Content-Type:application/json\r\nConnection:keep-alive\r\n", trx_buffer);
+  //Connection:keep-alive\r\n
+  nc = mg_connect_http(&p->mgr, MG_CB(ev_handler,&us), s_url, "Content-Type:application/json\r\n", trx_buffer);
    
   while (s_exit_flag == 0)
   {
     mg_mgr_poll(&p->mgr, 1);
   }
-  ret = (s_exit_flag > 0) ? 0 : s_exit_flag;
+  ret = (s_exit_flag == 200) ? 0 : s_exit_flag;
   
 #ifndef MOONGOOSE
 
