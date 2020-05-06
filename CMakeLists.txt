@@ -25,7 +25,16 @@ TARGET_LINK_LIBRARIES(chaos_crest_ui_test common-crest pthread)
 TARGET_LINK_LIBRARIES(het_acquire common-crest pthread)
 
 INSTALL(FILES chaos_crest.h DESTINATION include/common/crest)
-INSTALL_TARGETS(/lib  common-crest)
-INSTALL_TARGETS(/bin  crest_test)
-INSTALL_TARGETS(/bin  chaos_crest_ui_test)
+#INSTALL_TARGETS(/lib  common-crest)
+INSTALL(TARGETS common-crest
+        DESTINATION "lib"
+        PERMISSIONS OWNER_WRITE OWNER_READ GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+#INSTALL_TARGETS(/bin  crest_test)
+INSTALL(TARGETS crest_test
+        DESTINATION "bin"
+        PERMISSIONS OWNER_WRITE OWNER_READ GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+#INSTALL_TARGETS(/bin  chaos_crest_ui_test)
+INSTALL(TARGETS chaos_crest_ui_test
+        DESTINATION "bin"
+        PERMISSIONS OWNER_WRITE OWNER_READ GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 
