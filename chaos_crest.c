@@ -109,6 +109,8 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data)
     break;
   case MG_EV_HTTP_REPLY:{
     userdata_t *ptr= (userdata_t *)nc->mgr->user_data;
+    DPRINT("Got reply:\n%.*s\n%d\n", (int) hm->body.len, hm->body.p,hm->resp_code);
+
     // printf("Got reply:\n%.*s\n%d\n", (int) hm->body.len, hm->body.p,hm->resp_code);
     if(ptr && ptr->buf){
       memcpy(ptr->buf,hm->body.p,(hm->body.len<ptr->len)?hm->body.len:ptr->len);
@@ -138,7 +140,7 @@ int http_post(chaos_crest_handle_t h, const char *api, const char *trx_buffer, i
   char s_url[256];
   snprintf(s_url, sizeof(s_url), "%s%s", p->wan_url, api);
   s_exit_flag = 0;
-  DPRINT("POSTING:%s\n",trx_buffer);
+  DPRINT("POSTING:%s\n",api);
   userdata_t us;
   us.buf=0;
   if(rx_buffer){
@@ -566,7 +568,7 @@ uint32_t chaos_crest_add_cu(chaos_crest_handle_t h, const char *name, chaos_ds_t
       }
     }
     
-    DPRINT("updating [%d]\"%s\" format \"%s\" size:%d allocated:%d type:0x%x (@0x%x)\n", attr, p->data, p->format, p->size, p->alloc_size,p->type, data);
+  //  DPRINT("updating [%d]\"%s\" format \"%s\" size:%d allocated:%d type:0x%x (@0x%x)\n", attr, p->data, p->format, p->size, p->alloc_size,p->type, data);
     return 0;
   }
 
