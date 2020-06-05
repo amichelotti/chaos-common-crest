@@ -31,7 +31,7 @@ typedef struct _http
   unsigned long recvb;
 } _http_handle_t;
 
-#define HTTP_LIB_DEBUG
+//#define HTTP_LIB_DEBUG
 #ifdef HTTP_LIB_DEBUG
 #define DPRINT(x, ARGS...) printf(x, ##ARGS)
 #else
@@ -319,7 +319,7 @@ int getResponse(http_handle_t h, char *buffer, int max_size)
         }
         if (fetch_term && term)
         {
-          DPRINT("fetching terminator after buffer (%d/%d/%d)\"%s\"\n", strlen(buffer), cnt, max_size, buffer);
+          DPRINT("fetching terminator after buffer (%lu/%d/%d)\"%s\"\n", strlen(buffer), cnt, max_size, buffer);
           fetch_term = 0;
           continue;
         }
@@ -433,7 +433,7 @@ int http_perform_request(http_handle_t h, const char *method, const char *hostna
   char buffer[4096];
   char *pnt = buffer;
   *buffer = 0;
-  DPRINT("http_request (%d) method:%s hostname:%s api:%s, max_size %d\n", p->sock, method, hostname, api, sizeof(buffer));
+  DPRINT("http_request (%d) method:%s hostname:%s api:%s, max_size %lu\n", p->sock, method, hostname, api, sizeof(buffer));
   ADD_HEADER_STR(pnt, sizeof(buffer), "%s %s HTTP/1.1\r\n", method, api);
   ADD_HEADER_STR(pnt, sizeof(buffer), "Accept: */*\r\n");
   ADD_HEADER_STR(pnt, sizeof(buffer), "User-Agent: %s\r\n", agent);
