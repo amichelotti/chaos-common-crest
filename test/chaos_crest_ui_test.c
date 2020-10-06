@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
       }
     }
     if(tm>0){
-      printf("%s returned at %llu:\nkeys:%s\nvalues:%s\n",cuname,tm,buffer,values);
+      printf("%s returned at %lu:\nkeys:%s\nvalues:%s\n",cuname,tm,buffer,values);
       
     } else {
       printf("## error getting %s\n",cuname);
